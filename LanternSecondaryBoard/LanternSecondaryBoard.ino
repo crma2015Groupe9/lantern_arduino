@@ -2,108 +2,57 @@
 /*======Liste des features======*/
 /*==============================*/
 
-//bluetooth in/out OK
-//Controle des NeoPixels TO DO
-//Open/close detection TO DO
-//Detecteur infrarouge TO DO
 //Lecture du son TO DO
-//Controle du volume TO DO
-//Led d'état red/green TO DO
+//Communication avec la main Board OK
 
 /*==============================*/
 /*==============================*/
 /*==============================*/
 
 #include <SPI.h>
-#include <Adafruit_BLE_UART.h>
-//#include <SD.h>
-#include <Adafruit_NeoPixel.h>
-//#include <TMRpcm.h>
+#include <SD.h>
+#include <TMRpcm.h>
+#include <Wire.h>
+#include <EasyTransferI2C.h>
 
-#include <Tween.h>
 #include <TimeManager.h>
-#include <Colors.h>
 
-//#define SPEAKER_PIN 6
-//#define SD_CARD_PIN 10
-//TMRpcm audio;
+/*==================================================*/
+/*=========Communication avec la main board=========*/
+/*==================================================*/
 
-/*===============================*/
-/*=====Gestion des neopixels=====*/
-/*===============================*/
+#define MAIN_BOARD_ADDRESS 4
+#define SECONDARY_BOARD_ADDRESS 9
 
-#define LEDS_PIN 9
-#define NUMBER_OF_LEDS 2
+EasyTransferI2C ET;
 
-Adafruit_NeoPixel leds = Adafruit_NeoPixel(NUMBER_OF_LEDS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
+struct WireDatas {
+    int actionIdentifier;
+} wireDatas;
 
+void receive(int numBytes) {}
 
-void rgb(byte index, byte red, byte green, byte blue){
-  leds.setPixelColor(index, green, red, blue);
-}
+/*================================*/
+/*=========Gestion du son=========*/
+/*================================*/
 
-void rgb(byte red, byte green, byte blue){
-  byte i;
-  for(i=0;i<NUMBER_OF_LEDS;i++){
-    rgb(i, red, green, blue);
-  }  
-}
-/*==============================*/
-/*=====Gestion du bluetooth=====*/
-/*==============================*/
-
-#define REQ_PIN 10
-#define RDY_PIN 2
-#define RST_PIN 7
-
-Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
-
-void sendMessage(char *messageToSend, uint8_t lengthOfMessageToSend){
-  uint8_t *buffer;
-  buffer[0] = 0;
-  buffer[1] = 0;
-  
-  for(byte i=0;i<lengthOfMessageToSend;i++){
-    buffer[i+2] = messageToSend[i];
-  }
-  
-  bluetooth.write(buffer, lengthOfMessageToSend+2);
-}
-
-void rxCallback(uint8_t *buffer, uint8_t len)
-{
-  if((char)buffer[0] == 'a'){
-    //Serial.println("red and green");
-    rgb(0, 255, 0, 0);
-    rgb(1, 0, 255, 0);
-    leds.show();
-  }
-  
-  if((char)buffer[0] == 'b'){
-    //Serial.println("purple and blue");
-    rgb(0, 255, 0, 250);
-    rgb(1, 0, 0, 255);
-    leds.show();
-  }
-
-  if((char)buffer[0] == 'c'){
-    sendMessage("hello", 5);
-  }
-}
-
-/*==============================*/
-/*==============================*/
-/*==============================*/
+#define SPEAKER_PIN 6
+#define SD_CARD_PIN 10
+TMRpcm audio;
 
 TimeManager time;
+boolean firstLoop;
 
 void setup(void)
 { 
   Serial.begin(9600);
   while(!Serial);
   
-  leds.begin();
-  leds.show();
+  //Communication avec la main board
+  Wire.begin(SECONDARY_BOARD_ADDRESS);
+  ET.begin(details(wireDatas), &Wire);
+  Wire.onReceive(receive);
+  /*------------------------------*/
   
   /*pinMode(SPEAKER_PIN, OUTPUT);
 
@@ -117,9 +66,7 @@ void setup(void)
 
   delay(2000);*/
 
-  bluetooth.setRXcallback(rxCallback);
-  bluetooth.setDeviceName("LANTERN");
-  bluetooth.begin();
+  firstLoop = true;
 
   time.init();
 }
@@ -127,11 +74,24 @@ void setup(void)
 void loop()
 {
   time.loopStart();
-
-  bluetooth.pollACI();
   
-  rgb(15, 15, 0);
-  leds.show();
+  if(firstLoop){
+  
+    firstLoop = false;
+  }
+  
+  if(ET.receiveData()){
+    switch(wireDatas.actionIdentifier){
+      case 1:
+      break;
+      
+      case 2:
+      break;
+      
+      default:
+      break;
+    }
+  }
 
   time.loopEnd();
 }
