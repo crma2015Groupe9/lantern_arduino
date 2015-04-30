@@ -8,8 +8,8 @@
 //Open/close detection OK
 //Detecteur infrarouge TO DO
 //Controle du volume IN PROGRESS
-//Led d'état red/green OK
-//Led state on/off TO DO
+//Led d'état OK
+//Led state on/off IN PROGRESS
 
 /*==============================*/
 /*==============================*/
