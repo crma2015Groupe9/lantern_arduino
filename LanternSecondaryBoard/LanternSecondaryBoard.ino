@@ -36,7 +36,7 @@ void receive(int numBytes) {}
 /*=========Gestion du son=========*/
 /*================================*/
 
-#define SPEAKER_PIN 6
+#define SPEAKER_PIN 9
 #define SD_CARD_PIN 10
 TMRpcm audio;
 
@@ -54,7 +54,9 @@ void setup(void)
   Wire.onReceive(receive);
   /*------------------------------*/
   
-  /*pinMode(SPEAKER_PIN, OUTPUT);
+  //Gestion de l'audio
+  
+  pinMode(SPEAKER_PIN, OUTPUT);
 
   audio.speakerPin = SPEAKER_PIN;
   if(!SD.begin(SD_CARD_PIN)){
@@ -62,9 +64,12 @@ void setup(void)
   }
   audio.volume(1);
   audio.setVolume(7);
-  audio.play("klax");
-
-  delay(2000);*/
+  
+  tone(SPEAKER_PIN, 440, 1500);
+  
+  delay(2000);
+  
+  audio.play("klax.wav");
 
   firstLoop = true;
 
@@ -73,6 +78,10 @@ void setup(void)
 
 void loop()
 {
+  delay(2000);
+  
+  audio.play("klax.wav");
+  
   time.loopStart();
   
   if(firstLoop){

@@ -5,10 +5,11 @@
 //bluetooth in/out OK
 //Controle des NeoPixels IN PROGRESS
 //Communication avec la secondary Board OK
-//Open/close detection TO DO
+//Open/close detection OK
 //Detecteur infrarouge TO DO
-//Controle du volume TO DO
-//Led d'état red/green TO DO
+//Controle du volume IN PROGRESS
+//Led d'état red/green OK
+//Led state on/off TO DO
 
 /*==============================*/
 /*==============================*/
@@ -24,6 +25,8 @@
 #include <TimeManager.h>
 #include <Colors.h>
 
+TimeManager time;
+
 /*==================================================*/
 /*=========Communication avec la secondary board=========*/
 /*==================================================*/
@@ -31,13 +34,19 @@
 #define MAIN_BOARD_ADDRESS 4
 #define SECONDARY_BOARD_ADDRESS 9
 
+#define WIRE_ACTION_START_LANTERN 0
+#define WIRE_ACTION_PLAY_SOUND 1
+#define WIRE_ACTION_CHANGE_VOLUME 2
+
 EasyTransferI2C ET;
 
 struct WireDatas {
-    int actionIdentifier;
+    byte actionIdentifier;
+    byte audioVolume;
+    byte soundFileIdentifier;
 } wireDatas;
 
-void launchActionOnSecondaryBoard(int actionIdentifier){
+void launchActionOnSecondaryBoard(byte actionIdentifier){
   wireDatas.actionIdentifier = actionIdentifier;
   ET.sendData(SECONDARY_BOARD_ADDRESS);
 }
@@ -101,14 +110,122 @@ void rxCallback(uint8_t *buffer, uint8_t len)
   if((char)buffer[0] == 'c'){
     sendMessage("hello", 5);
   }
+  
+  if((char)buffer[0] == 'v'){
+    Serial.println(wireDatas.audioVolume);
+  }
+}
+
+boolean bluetoothIsConnected(){
+  return bluetooth.getState() == ACI_EVT_CONNECTED;
 }
 
 /*==============================*/
 /*==============================*/
 /*==============================*/
 
-TimeManager time;
-boolean firstLoop;
+#define CLOSED_PIN 4
+
+boolean lanternIsClosed(){
+  return digitalRead(CLOSED_PIN);
+}
+
+boolean lanternIsOpen(){
+  return !lanternIsClosed();
+}
+
+/*==============================*/
+/*======Gestion du volume=======*/
+/*==============================*/
+#include <Rotary.h>
+
+#define ROTARY_LEFT_PIN A1
+#define ROTARY_RIGHT_PIN A0
+#define MIN_VOLUME 0
+#define MAX_VOLUME 7
+
+Rotary volumeRotaryEncoder = Rotary(ROTARY_LEFT_PIN, ROTARY_RIGHT_PIN);
+
+void updateVolume(){
+    unsigned char volumeRotaryEncoderDirection = volumeRotaryEncoder.process();
+    
+    if(volumeRotaryEncoderDirection){
+      volumeRotaryEncoderDirection == DIR_CW ? wireDatas.audioVolume++ : wireDatas.audioVolume--;
+      
+      if(wireDatas.audioVolume < MIN_VOLUME){
+        wireDatas.audioVolume = MIN_VOLUME;
+      }
+      
+      if(wireDatas.audioVolume > MAX_VOLUME){
+        wireDatas.audioVolume = MAX_VOLUME;
+      }
+      
+      launchActionOnSecondaryBoard(WIRE_ACTION_CHANGE_VOLUME);     
+    }
+}
+
+/*==============================*/
+/*====Gestion des statuts=======*/
+/*==============================*/
+
+#define TIME_BEFORE_LANTERN_IS_READY 5000
+
+#define RED_STATE_LED_PIN 3
+#define GREEN_STATE_LED_PIN 5
+
+#define STATE_LED_ON_OFF_PIN A2
+boolean stateLedOn, previousSwitchStateLed;
+
+//Le bouton du rotary encoder permet d'éteindre la led de statut
+void updateSwitchLedState(){
+  boolean switchStateLed = digitalRead(STATE_LED_ON_OFF_PIN);
+  if(switchStateLed != previousSwitchStateLed && !switchStateLed){
+    stateLedOn = !stateLedOn;
+  }
+  previousSwitchStateLed = switchStateLed;
+}
+
+Tween stateLedBreath;
+byte stateLedIntensity;
+void updateStateLedIntensity(){
+  stateLedBreath.update(time.delta());
+  stateLedIntensity = (byte)(stateLedBreath.easeInQuintValue());
+}
+
+void redLed(){
+  analogWrite(RED_STATE_LED_PIN, stateLedOn ? stateLedIntensity : 0);
+  analogWrite(GREEN_STATE_LED_PIN, 0);
+}
+
+void greenLed(){
+  analogWrite(RED_STATE_LED_PIN, 0);
+  analogWrite(GREEN_STATE_LED_PIN, stateLedOn ? stateLedIntensity : 0);
+}
+
+void yellowLed(){
+  analogWrite(RED_STATE_LED_PIN, stateLedOn ? stateLedIntensity/1.5 : 0);
+  analogWrite(GREEN_STATE_LED_PIN, stateLedOn ? stateLedIntensity/1.5 : 0);
+}
+
+void orangeLed(){
+  analogWrite(RED_STATE_LED_PIN, stateLedOn ? stateLedIntensity/2 : 0);
+  analogWrite(GREEN_STATE_LED_PIN, stateLedOn ? stateLedIntensity/8 : 0);
+}
+
+boolean firstLoop, lanternReady;
+
+//Definition des modes de la veilleuse
+#define LANTERN_MODE_INIT 0
+#define LANTERN_MODE_PREVIEW 1
+#define LANTERN_MODE_STORY 2
+#define LANTERN_MODE_TRANSITION 3
+#define LANTERN_MODE_NIGHT 4
+
+byte currentLanternMode, previousLanternMode;
+
+/*==============================*/
+/*==============================*/
+/*==============================*/
 
 void setup(void)
 { 
@@ -125,9 +242,24 @@ void setup(void)
 
   bluetooth.setRXcallback(rxCallback);
   bluetooth.setDeviceName("LANTERN");
-  bluetooth.begin();
+  
+  pinMode(CLOSED_PIN, INPUT);
+  pinMode(STATE_LED_ON_OFF_PIN, INPUT);
   
   firstLoop = true;
+  lanternReady = false;
+  stateLedOn = true;
+  previousSwitchStateLed = LOW;
+  
+  previousLanternMode = LANTERN_MODE_INIT;
+  currentLanternMode = LANTERN_MODE_INIT;
+  
+  wireDatas.audioVolume = 0;
+  stateLedIntensity = 0;
+  
+  stateLedBreath.transition(20, 200, 3500, 1000);
+  stateLedBreath.loopWithDelay();
+  stateLedBreath.reverseLoop();
   
   time.init();
 }
@@ -135,16 +267,76 @@ void setup(void)
 void loop()
 {
   time.loopStart();
-                                       
-  if(firstLoop){
-    rgb(15, 15, 0);
+  
+  updateStateLedIntensity();
+  updateSwitchLedState();
+  
+  //On attend un peu pour etre sur que la secondary board est prete à recevoir des données
+  if(!lanternReady){
+    redLed();
     
-    firstLoop = false;
+    if(time.total() > TIME_BEFORE_LANTERN_IS_READY){
+      lanternReady = true;
+    }
   }
-
-  bluetooth.pollACI();
-
-  leds.show();
-
+  
+  if(firstLoop){
+    if(lanternReady){
+      bluetooth.begin();
+      
+      wireDatas.audioVolume = 7;
+      launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
+    
+      firstLoop = false;
+    }
+  }
+  
+  if(lanternReady){
+    //Gestion des changement de mode
+    if(currentLanternMode != previousLanternMode){
+    
+    }
+    
+    //On definit les events pour chaque mode
+    switch(currentLanternMode){
+      case LANTERN_MODE_INIT:
+        bluetoothIsConnected() ? greenLed() : yellowLed();
+      break;
+      
+      case LANTERN_MODE_PREVIEW:
+        bluetoothIsConnected() ? greenLed() : yellowLed();
+      break;
+      
+      case LANTERN_MODE_STORY:
+        bluetoothIsConnected() ? greenLed() : yellowLed();
+      break;
+      
+      case LANTERN_MODE_TRANSITION:
+        orangeLed();
+      break;
+      
+      case LANTERN_MODE_NIGHT:
+        orangeLed();
+      break;
+      
+      default:
+      break;
+    }
+    
+    updateVolume();
+    
+    /*
+    if(lanternIsClosed()){
+      rgb(255,0,0);
+    }
+    if(lanternIsOpen()){
+      rgb(0,255,0);
+    }*/
+  
+    bluetooth.pollACI();
+  
+    leds.show();
+  }
+  
   time.loopEnd();
 }
