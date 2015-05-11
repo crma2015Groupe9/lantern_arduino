@@ -27,6 +27,30 @@
 
 TimeManager time;
 
+//Definition des storyCode
+#define STORY_NO_STORY 'n'
+#define STORY_DRAGON_ENOSHIMA 'd'
+#define STORY_BOUCLE_OR 'o'
+
+char currentStoryCode, previousLoopStoryCode, previousStoryCode;
+void setStory(char newStoryCode){
+  previousStoryCode = currentStoryCode;
+  currentStoryCode = newStoryCode;
+}
+
+//Definition des modes de la veilleuse
+#define LANTERN_MODE_INIT 0
+#define LANTERN_MODE_PREVIEW 1
+#define LANTERN_MODE_STORY 2
+#define LANTERN_MODE_TRANSITION 3
+#define LANTERN_MODE_NIGHT 4
+
+byte currentLanternMode, previousLanternMode, previousLoopLanternMode;
+void setLanternMode(byte newLanternMode){
+  previousLanternMode = currentLanternMode;
+  currentLanternMode = newLanternMode;
+}
+
 /*==================================================*/
 /*=========Communication avec la secondary board=========*/
 /*==================================================*/
@@ -51,12 +75,21 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
   ET.sendData(SECONDARY_BOARD_ADDRESS);
 }
 
+/*================================*/
+/*======Gestion des couleurs======*/
+/*================================*/
+
+#define COLOR_NIGHT_ORANGE Colors(152, 38, 0);
+#define COLOR_BLACK Colors(0, 0, 0);
+#define COLOR_PREVIEW_DRAGON_ENOSHIMA Colors(0, 50, 155);
+#define COLOR_PREVIEW_BOUCLE_OR Colors(245, 195, 10);
+
 /*===============================*/
 /*=====Gestion des neopixels=====*/
 /*===============================*/
 
 #define LEDS_PIN 9
-#define NUMBER_OF_LEDS 2
+#define NUMBER_OF_LEDS 29
 
 Adafruit_NeoPixel leds = Adafruit_NeoPixel(NUMBER_OF_LEDS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
@@ -68,7 +101,112 @@ void rgb(byte red, byte green, byte blue){
   byte i;
   for(i=0;i<NUMBER_OF_LEDS;i++){
     rgb(i, red, green, blue);
-  }  
+  }
+}
+
+void rgbGroup(byte red, byte green, byte blue, byte *group, byte quantity){
+  byte i;
+  
+  for(i=0;i<quantity;i++){
+    rgb(group[i], red, green, blue);
+  }
+}
+
+Colors currentColorOfLedAtIndex(byte index){
+  uint32_t rawColor = leds.getPixelColor(index);
+
+  uint8_t
+      green = (uint8_t)(rawColor >> 16),
+      red = (uint8_t)(rawColor >>  8),
+      blue = (uint8_t)rawColor;
+
+  return Colors((byte)red, (byte)green, (byte)blue);
+}
+
+#define LIGHT_ANIMATION_AMBIANT_NONE 0
+#define LIGHT_ANIMATION_AMBIANT_SEA 1
+
+#define LIGHT_ANIMATION_SEQUENCE_NONE 0
+#define LIGHT_ANIMATION_SEQUENCE_DRAGON 1
+
+boolean ambiantIsTransitionning;
+byte currentAmbiant, currentSequence;
+Tween ambiantTransitionTween, lightBreathTween;
+
+void launchAmbiantTransition(){
+  ambiantIsTransitionning = true;
+  ambiantTransitionTween.transition(0, 100, 3600);  
+}
+
+void updateAmbiantTransition(){
+  if(ambiantTransitionTween.isEnded()){
+      ambiantIsTransitionning = false;
+  }
+
+  ambiantTransitionTween.update(time.delta());
+}
+
+Colors ledsOriginColor[NUMBER_OF_LEDS];
+Colors ledsTargetColor[NUMBER_OF_LEDS];
+
+void updateLightBreath(){
+  if(!ambiantIsTransitionning){
+    lightBreathTween.update(time.delta());
+  }
+}
+
+float getLightBreathAlpha(){
+  return (float)lightBreathTween.easeInOutQuartValue() / 255.0;
+}
+
+void breath(byte min, byte max, unsigned long duration, unsigned long delay){
+  if(min > max){
+      byte temp = max;
+      max = min;
+      min = temp;
+  }
+
+  lightBreathTween.transition(min, max, duration, delay);
+  lightBreathTween.loopWithDelay();
+  lightBreathTween.reverseLoop();
+}
+
+void simpleBreath(){
+  breath(0, 148, 3900, 150);
+}
+
+void greathBreath(){
+  breath(0, 180, 2800, 550);
+}
+
+void ambiantTransition(Colors *newLedsTargetColors){
+  byte i;
+  
+  for(i=0;i<NUMBER_OF_LEDS;i++){
+    ledsOriginColor[i] = currentColorOfLedAtIndex(i);
+    ledsTargetColor[i] = newLedsTargetColors[i];    
+  }
+
+  launchAmbiantTransition();
+}
+
+void applyAmbiantColor(boolean breathing){
+  byte i;
+
+  if(ambiantIsTransitionning){
+    for(i=0;i<NUMBER_OF_LEDS;i++){
+      Colors ledColor = ledsOriginColor[i].getGradientStep(ambiantTransitionTween.easeInOutQuadCursor(), ledsTargetColor[i]);
+      rgb(i, ledColor.red(), ledColor.green(), ledColor.blue());
+    }
+  }
+  else if(breathing){
+    float breathingAlpha = getLightBreathAlpha();
+    for(i=0;i<NUMBER_OF_LEDS;i++){
+      Colors temp_ledColor = ledsTargetColor[i];
+      Colors finalColor = temp_ledColor.getColorWithAlpha(breathingAlpha);
+      rgb(i, finalColor.red(), finalColor.green(), finalColor.blue());
+    }
+  }
 }
 
 /*==============================*/
@@ -80,6 +218,15 @@ void rgb(byte red, byte green, byte blue){
 #define RST_PIN 7
 
 Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
+
+#define BLE_INSTRUCTION_SET_MODE 'm'
+#define BLE_INSTRUCTION_SET_STORY 's'
+#define BLE_INSTRUCTION_SET_STORY_PAGE 'p'
+
+#define BLE_PARAM_MODE_PREVIEW 'p'
+#define BLE_PARAM_MODE_STORY 's'
+#define BLE_PARAM_MODE_TRANSITION 't'
+#define BLE_PARAM_MODE_NIGHT 'n'
 
 void sendMessage(char *messageToSend, uint8_t lengthOfMessageToSend){
   uint8_t *buffer;
@@ -95,24 +242,33 @@ void sendMessage(char *messageToSend, uint8_t lengthOfMessageToSend){
 
 void rxCallback(uint8_t *buffer, uint8_t len)
 {
-  if((char)buffer[0] == 'a'){
-    //Serial.println(F("red and green"));
-    rgb(0, 255, 0, 0);
-    rgb(1, 0, 255, 0);
-  }
-  
-  if((char)buffer[0] == 'b'){
-    //Serial.println(F("purple and blue"));
-    rgb(0, 255, 0, 250);
-    rgb(1, 0, 0, 255);
+  char bleInstruction = (char)buffer[0];
+  char bleParamOne = '0';
+
+  if(len > 1){
+    bleParamOne = (char)buffer[1];
   }
 
-  if((char)buffer[0] == 'c'){
-    sendMessage("hello", 5);
+  if(bleInstruction == BLE_INSTRUCTION_SET_MODE){
+      if(bleParamOne == BLE_PARAM_MODE_PREVIEW){
+          setLanternMode(LANTERN_MODE_PREVIEW);
+      }
+      else if(bleParamOne == BLE_PARAM_MODE_STORY){
+          setLanternMode(LANTERN_MODE_STORY);
+      }
+      else if(bleParamOne == BLE_PARAM_MODE_TRANSITION){
+          setLanternMode(LANTERN_MODE_TRANSITION);
+      }
+      else if(bleParamOne == BLE_PARAM_MODE_NIGHT){
+          setLanternMode(LANTERN_MODE_NIGHT);
+      }
+
+      manageLanternMode((currentLanternMode != previousLanternMode), false);
   }
-  
-  if((char)buffer[0] == 'v'){
-    Serial.println(wireDatas.audioVolume);
+  else if(bleInstruction == BLE_INSTRUCTION_SET_STORY){
+    setStory(bleParamOne);
+
+    manageLanternMode(false, (currentStoryCode != previousStoryCode));
   }
 }
 
@@ -214,15 +370,6 @@ void orangeLed(){
 
 boolean firstLoop, lanternReady;
 
-//Definition des modes de la veilleuse
-#define LANTERN_MODE_INIT 0
-#define LANTERN_MODE_PREVIEW 1
-#define LANTERN_MODE_STORY 2
-#define LANTERN_MODE_TRANSITION 3
-#define LANTERN_MODE_NIGHT 4
-
-byte currentLanternMode, previousLanternMode;
-
 /*==============================*/
 /*==============================*/
 /*==============================*/
@@ -253,6 +400,7 @@ void setup(void)
   
   previousLanternMode = LANTERN_MODE_INIT;
   currentLanternMode = LANTERN_MODE_INIT;
+  previousLoopLanternMode = LANTERN_MODE_INIT;
   
   wireDatas.audioVolume = 0;
   stateLedIntensity = 0;
@@ -261,15 +409,26 @@ void setup(void)
   stateLedBreath.loopWithDelay();
   stateLedBreath.reverseLoop();
   
+  ambiantIsTransitionning = false;
+
+  setStory(STORY_NO_STORY);
+
   time.init();
 }
 
 void loop()
 {
+  boolean modeChanged, storyChanged;
+  modeChanged = false;
+  storyChanged = currentStoryCode != previousLoopStoryCode;
+
   time.loopStart();
   
   updateStateLedIntensity();
   updateSwitchLedState();
+
+  updateAmbiantTransition();
+  updateLightBreath();
   
   //On attend un peu pour etre sur que la secondary board est prete à recevoir des données
   if(!lanternReady){
@@ -286,42 +445,16 @@ void loop()
       
       wireDatas.audioVolume = 7;
       launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
-    
+      setLanternMode(LANTERN_MODE_NIGHT);
+
       firstLoop = false;
     }
   }
   
   if(lanternReady){
-    //Gestion des changement de mode
-    if(currentLanternMode != previousLanternMode){
+    modeChanged = currentLanternMode != previousLoopLanternMode;
     
-    }
-    
-    //On definit les events pour chaque mode
-    switch(currentLanternMode){
-      case LANTERN_MODE_INIT:
-        bluetoothIsConnected() ? greenLed() : yellowLed();
-      break;
-      
-      case LANTERN_MODE_PREVIEW:
-        bluetoothIsConnected() ? greenLed() : yellowLed();
-      break;
-      
-      case LANTERN_MODE_STORY:
-        bluetoothIsConnected() ? greenLed() : yellowLed();
-      break;
-      
-      case LANTERN_MODE_TRANSITION:
-        orangeLed();
-      break;
-      
-      case LANTERN_MODE_NIGHT:
-        orangeLed();
-      break;
-      
-      default:
-      break;
-    }
+    manageLanternMode(modeChanged, storyChanged);
     
     updateVolume();
     
@@ -339,4 +472,92 @@ void loop()
   }
   
   time.loopEnd();
+}
+
+void manageLanternMode(boolean modeChanged, boolean storyChanged){
+  byte i, j;
+  //On definit les events pour chaque mode
+  switch(currentLanternMode){
+    case LANTERN_MODE_INIT:
+      bluetoothIsConnected() ? greenLed() : yellowLed();
+      rgb(0,0,0);
+    break;
+    
+    case LANTERN_MODE_PREVIEW:
+      bluetoothIsConnected() ? greenLed() : yellowLed();
+
+      if(modeChanged || storyChanged){
+        Colors newLedsTargetColors[NUMBER_OF_LEDS];
+        boolean validStory = true;
+
+        switch (currentStoryCode) {
+            case STORY_NO_STORY:
+              newLedsTargetColors[0] = COLOR_NIGHT_ORANGE;
+              for(i=1;i<NUMBER_OF_LEDS;i++){
+                newLedsTargetColors[i] = COLOR_BLACK;
+              }
+            break;
+
+            case STORY_DRAGON_ENOSHIMA:
+              for(i=0;i<NUMBER_OF_LEDS;i++){
+                newLedsTargetColors[i] = COLOR_PREVIEW_DRAGON_ENOSHIMA;
+              }
+            break;
+
+            case STORY_BOUCLE_OR:
+              for(i=0;i<NUMBER_OF_LEDS;i++){
+                newLedsTargetColors[i] = COLOR_PREVIEW_BOUCLE_OR;
+              }
+            break;
+
+            default:
+              validStory = false;
+            break;
+        }
+
+        if(validStory){
+          ambiantTransition(newLedsTargetColors);
+          simpleBreath();
+        }
+      }
+      else{
+        applyAmbiantColor(/*breathing*/true);
+      }
+    break;
+    
+    case LANTERN_MODE_STORY:
+      bluetoothIsConnected() ? greenLed() : yellowLed();
+    break;
+    
+    case LANTERN_MODE_TRANSITION:
+      orangeLed();
+    break;
+    
+    case LANTERN_MODE_NIGHT:
+      orangeLed();
+
+      if(modeChanged){
+        Colors newLedsTargetColors[NUMBER_OF_LEDS];
+        newLedsTargetColors[0] = COLOR_NIGHT_ORANGE;
+
+        for(i=1;i<NUMBER_OF_LEDS;i++){
+          newLedsTargetColors[i] = COLOR_BLACK;
+        }
+
+        ambiantTransition(newLedsTargetColors);
+        simpleBreath();
+      }
+      else{
+        applyAmbiantColor(/*breathing*/true);
+      }
+
+      //NIGHT MODE END
+    break;
+    
+    default:
+    break;
+  }
+
+  previousLoopLanternMode = currentLanternMode;
+  previousLoopStoryCode = currentStoryCode;
 }
