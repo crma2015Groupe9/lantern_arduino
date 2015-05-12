@@ -32,7 +32,25 @@ TimeManager time;
 #define STORY_DRAGON_ENOSHIMA 'd'
 #define STORY_BOUCLE_OR 'o'
 
+#define DURATION_1_MIN 60000
+#define DURATION_2_MIN 120000
+#define DURATION_3_MIN 180000
+#define DURATION_4_MIN 240000
+#define DURATION_5_MIN 300000
+#define DURATION_6_MIN 360000
+#define DURATION_7_MIN 420000
+#define DURATION_8_MIN 480000
+#define DURATION_9_MIN 540000
+#define DURATION_10_MIN 600000
+#define DURATION_11_MIN 660000
+#define DURATION_12_MIN 720000
+#define DURATION_13_MIN 780000
+#define DURATION_14_MIN 840000
+#define DURATION_15_MIN 900000
+
 char currentStoryCode, previousLoopStoryCode, previousStoryCode, currentPage, previousPage, previousLoopPage;
+unsigned long transitionToNightDuration;
+boolean transitionToNightStarted;
 
 void setPage(char newPage){
   previousPage = currentPage;
@@ -88,6 +106,7 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 /*======Gestion des couleurs======*/
 /*================================*/
 
+#define COLOR_TRANSITION_ORANGE Colors(255, 108, 0)
 #define COLOR_NIGHT_ORANGE Colors(152, 38, 0)
 #define COLOR_BLACK Colors(0, 0, 0)
 #define COLOR_PREVIEW_DRAGON_ENOSHIMA Colors(0, 50, 155)
@@ -95,15 +114,15 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 #define COLOR_WHITE Colors(255, 255, 255)
 #define COLOR_LIGHT_WHITE Colors(220, 220, 220)
 
-#define COLOR_DRAGON_RED Colors(225,8,0)
+#define COLOR_DRAGON_RED Colors(235,0,0)
 #define COLOR_PAGE_ONE_BOTTOM Colors(0,0,20)
 #define COLOR_PAGE_ONE_TOP Colors(0,45,245)
 #define COLOR_PAGE_TWO_BOTTOM Colors(0,0,20)
 #define COLOR_PAGE_TWO_TOP Colors(0,85,185)
 #define COLOR_PAGE_THREE_BOTTOM Colors(0,25,255)
-#define COLOR_PAGE_THREE_TOP Colors(230,230,230)
-#define COLOR_PAGE_FOUR_BOTTOM Colors(0,55,12)
-#define COLOR_PAGE_FOUR_TOP Colors(0,192,38)
+#define COLOR_PAGE_THREE_TOP Colors(175,175,175)
+#define COLOR_PAGE_FOUR_BOTTOM Colors(0,165,38)
+#define COLOR_PAGE_FOUR_TOP Colors(0,235,45)
 
 /*===============================*/
 /*=====Gestion des neopixels=====*/
@@ -180,9 +199,9 @@ boolean ambiantIsTransitionning;
 byte currentAmbiant, currentSequence;
 Tween ambiantTransitionTween, lightBreathTween;
 
-void launchAmbiantTransition(){
+void launchAmbiantTransition(unsigned long transitionDuration){
   ambiantIsTransitionning = true;
-  ambiantTransitionTween.transition(0, 100, 3600);  
+  ambiantTransitionTween.transition(0, 100, transitionDuration);  
 }
 
 void updateAmbiantTransition(){
@@ -230,7 +249,11 @@ void tutoBreath(){
   breath(0, 220, 1500, 150);
 }
 
-void ambiantTransition(Colors *newLedsTargetColors){
+void noBreath(){
+  breath(0, 0, 0, 0);
+}
+
+void ambiantTransition(Colors *newLedsTargetColors, unsigned long transitionDuration){
   byte i;
   
   for(i=0;i<NUMBER_OF_LEDS;i++){
@@ -238,10 +261,14 @@ void ambiantTransition(Colors *newLedsTargetColors){
     ledsTargetColor[i] = newLedsTargetColors[i];    
   }
 
-  launchAmbiantTransition();
+  launchAmbiantTransition(transitionDuration);
 }
 
-void applyAmbiantColor(boolean breathing){
+void ambiantTransition(Colors *newLedsTargetColors){
+  ambiantTransition(newLedsTargetColors, 3600);
+}
+
+void applyAmbiantColor(boolean breathing, boolean justTheMiddle){
   byte i;
 
   if(ambiantIsTransitionning){
@@ -252,12 +279,20 @@ void applyAmbiantColor(boolean breathing){
   }
   else if(breathing){
     float breathingAlpha = getLightBreathAlpha();
+    boolean onMiddle = false;
     for(i=0;i<NUMBER_OF_LEDS;i++){
       Colors temp_ledColor = ledsTargetColor[i];
-      Colors finalColor = temp_ledColor.getColorWithAlpha(breathingAlpha);
+
+      onMiddle = (i == 0 || i == 4 || i == 11 || i == 18 || i == 25);
+      Colors finalColor = (!justTheMiddle || onMiddle) ? temp_ledColor.getColorWithAlpha(breathingAlpha) : temp_ledColor;
+
       rgb(i, finalColor.red(), finalColor.green(), finalColor.blue());
     }
   }
+}
+
+void applyAmbiantColor(boolean breathing){
+  applyAmbiantColor(breathing, false);
 }
 
 /*==============================*/
@@ -275,6 +310,7 @@ Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
 #define BLE_INSTRUCTION_SET_MODE 'm'
 #define BLE_INSTRUCTION_SET_STORY 's'
 #define BLE_INSTRUCTION_SET_STORY_PAGE 'p'
+#define BLE_INSTRUCTION_SET_TRANSITION_TIME 't'
 
 #define BLE_PARAM_MODE_PREVIEW 'p'
 #define BLE_PARAM_MODE_STORY 's'
@@ -340,6 +376,25 @@ void rxCallback(uint8_t *buffer, uint8_t len)
 
     manageLanternMode(false, false, (currentPage != previousPage));
   }
+  else if(bleInstruction == BLE_INSTRUCTION_SET_TRANSITION_TIME){
+    switch (bleParamOne) {
+        case '1':transitionToNightDuration = DURATION_1_MIN;break;
+        case '2':transitionToNightDuration = DURATION_2_MIN;break;
+        case '3':transitionToNightDuration = DURATION_3_MIN;break;
+        case '4':transitionToNightDuration = DURATION_4_MIN;break;
+        case '5':transitionToNightDuration = DURATION_5_MIN;break;
+        case '6':transitionToNightDuration = DURATION_6_MIN;break;
+        case '7':transitionToNightDuration = DURATION_7_MIN;break;
+        case '8':transitionToNightDuration = DURATION_8_MIN;break;
+        case '9':transitionToNightDuration = DURATION_9_MIN;break;
+        case 'a':transitionToNightDuration = DURATION_10_MIN;break;
+        case 'b':transitionToNightDuration = DURATION_11_MIN;break;
+        case 'c':transitionToNightDuration = DURATION_12_MIN;break;
+        case 'd':transitionToNightDuration = DURATION_13_MIN;break;
+        case 'e':transitionToNightDuration = DURATION_14_MIN;break;
+        default:transitionToNightDuration = DURATION_15_MIN;break;
+    }
+  }
 }
 
 boolean bluetoothIsConnected(){
@@ -352,7 +407,7 @@ boolean bluetoothIsConnected(){
 
 #define CLOSED_PIN 4
 
-#define CHECKING_IF_LANTERN_IS_OPENED_TIME_INTERVAL 2000
+#define CHECKING_IF_LANTERN_IS_OPENED_TIME_INTERVAL 1000
 
 unsigned long timeSinceLastLanternOpenedChecking;
 
@@ -493,6 +548,9 @@ void setup(void)
   currentPage = '0';
   previousPage = '0';
 
+  transitionToNightDuration = DURATION_15_MIN;
+  transitionToNightStarted = false;
+
   time.init();
 }
 
@@ -500,7 +558,7 @@ void loop()
 {
   boolean modeChanged, storyChanged, pageChanged;
     
-  if(!bluetoothIsConnected() && (currentLanternMode == LANTERN_MODE_TUTO_BEGIN) || currentLanternMode == LANTERN_MODE_TUTO_END){
+  if(!bluetoothIsConnected() && (currentLanternMode == LANTERN_MODE_TUTO_BEGIN || currentLanternMode == LANTERN_MODE_TUTO_END)){
       setLanternMode(LANTERN_MODE_NIGHT);
   }
 
@@ -593,6 +651,10 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
       timeSinceLastLanternOpenedChecking = 0;
   }
 
+  if(currentLanternMode != LANTERN_MODE_TRANSITION && currentLanternMode != LANTERN_MODE_NIGHT){
+      transitionToNightStarted = false;
+  }
+
   //On definit les events pour chaque mode
   switch(currentLanternMode){
     case LANTERN_MODE_INIT:
@@ -654,28 +716,33 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
         int topRowIndex = NUMBER_OF_LIGHT_ROWS - 1;
         float row = 0;
         float gradientCursor = 0.0;
-        boolean hotfix_page2 = false;
+        byte specialAmbiantPage = 0;
 
         if(currentStoryCode == STORY_DRAGON_ENOSHIMA){
             switch (currentPage) {
                 case '1':
+                  specialAmbiantPage = 1;
                   gradientBottomColor = COLOR_PAGE_ONE_BOTTOM;
                   gradientTopColor = COLOR_PAGE_ONE_TOP;
                 break;
 
                 case '2':
-                  hotfix_page2 = true;
+                  specialAmbiantPage = 2;
 
                   gradientBottomColor = COLOR_PAGE_TWO_BOTTOM;
                   gradientTopColor = COLOR_PAGE_TWO_TOP;
                 break;
 
                 case '3':
+                  specialAmbiantPage = 3;
+
                   gradientBottomColor = COLOR_PAGE_THREE_BOTTOM;
                   gradientTopColor = COLOR_PAGE_THREE_TOP;
                 break;
 
                 case '4':
+                  specialAmbiantPage = 4;
+
                   gradientBottomColor = COLOR_PAGE_FOUR_BOTTOM;
                   gradientTopColor = COLOR_PAGE_FOUR_TOP;
                 break;
@@ -694,15 +761,13 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
           newLedsTargetColors[i] = gradientBottomColor.getGradientStep(gradientCursor, gradientTopColor);
         }
 
-        if(hotfix_page2){
-            for(i=22;i<=24;i++){
+        if(specialAmbiantPage == 2){
+            for(i=22;i<=28;i++){
               newLedsTargetColors[i] = COLOR_DRAGON_RED;
             }
-            for(i=26;i<=28;i++){
-              newLedsTargetColors[i] = COLOR_DRAGON_RED;
-            }
-
-            newLedsTargetColors[25] = COLOR_BLACK;
+        }
+        else if(specialAmbiantPage == 4){
+          newLedsTargetColors[0] = COLOR_WHITE;
         }
 
         ambiantTransition(newLedsTargetColors);
@@ -715,6 +780,37 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
     
     case LANTERN_MODE_TRANSITION:
       orangeLed();
+
+      if(modeChanged){
+        transitionToNightStarted = true;
+
+        for(i=0;i<NUMBER_OF_LEDS;i++){
+          newLedsTargetColors[i] = COLOR_TRANSITION_ORANGE;
+        }
+
+        ambiantTransition(newLedsTargetColors);
+        noBreath();
+      }
+      else{
+        applyAmbiantColor(/*breathing*/false);
+
+        if(ambiantTransitionTween.isEnded()){
+          if(transitionToNightStarted){
+              newLedsTargetColors[0] = COLOR_NIGHT_ORANGE;
+
+              for(i=1;i<NUMBER_OF_LEDS;i++){
+                newLedsTargetColors[i] = COLOR_BLACK;
+              }
+              ambiantTransition(newLedsTargetColors, transitionToNightDuration);
+
+              transitionToNightStarted = false;
+          }
+          else{
+            setLanternMode(LANTERN_MODE_NIGHT);
+            modeChanged = true;
+          }
+        }
+      }
     break;
     
     case LANTERN_MODE_NIGHT:
@@ -726,7 +822,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
         for(i=1;i<NUMBER_OF_LEDS;i++){
           newLedsTargetColors[i] = COLOR_BLACK;
         }
-
+  
         ambiantTransition(newLedsTargetColors);
         justRoundBreath();
       }
@@ -763,6 +859,26 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
 
     case LANTERN_MODE_TUTO_END:
       bluetoothIsConnected() ? greenLed() : yellowLed();
+
+      if(modeChanged){
+        newLedsTargetColors[0] = COLOR_LIGHT_WHITE;
+
+        for(i=1;i<NUMBER_OF_LEDS;i++){
+          newLedsTargetColors[i] = ledsTargetColor[i];
+        }
+
+        ambiantTransition(newLedsTargetColors);
+        tutoBreath();
+      }
+      else{
+        applyAmbiantColor(/*breathing*/true, /*Just on Middle*/true);
+      }
+    
+      if(checkIfLanternIsOpened){
+          if(lanternIsClosed()){
+              sendMessage("closed", 6);
+          }
+      }
     break;
     
     default:
