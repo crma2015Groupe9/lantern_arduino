@@ -622,10 +622,12 @@ void loop()
 }
 
 void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageChanged){
-  boolean checkIfLanternIsOpened;
+  boolean checkIfLanternIsOpened, nextTurnNeedAModeChanged;
   byte i, j;
   Colors newLedsTargetColors[NUMBER_OF_LEDS];
   Colors gradientBottomColor, gradientTopColor;
+
+  nextTurnNeedAModeChanged = false;
 
   if(currentLanternMode == LANTERN_MODE_LEDS_TEST){
     for(i=0;i<NUMBER_OF_LEDS;i++){
@@ -807,7 +809,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
           }
           else{
             setLanternMode(LANTERN_MODE_NIGHT);
-            modeChanged = true;
+            nextTurnNeedAModeChanged = true;
           }
         }
       }
@@ -885,7 +887,10 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
     break;
   }
 
-  previousLoopLanternMode = currentLanternMode;
+  if (!nextTurnNeedAModeChanged)
+  {
+    previousLoopLanternMode = currentLanternMode;
+  }
   previousLoopStoryCode = currentStoryCode;
   previousLoopPage = currentPage;
 }
