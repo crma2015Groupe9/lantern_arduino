@@ -1,20 +1,3 @@
-/*==============================*/
-/*======Liste des features======*/
-/*==============================*/
-
-//bluetooth in/out OK
-//Controle des NeoPixels IN PROGRESS
-//Communication avec la secondary Board OK
-//Open/close detection OK
-//Detecteur infrarouge TO DO
-//Controle du volume IN PROGRESS
-//Led d'état OK
-//Led state on/off IN PROGRESS
-
-/*==============================*/
-/*==============================*/
-/*==============================*/
-
 #include <SPI.h>
 #include <Adafruit_BLE_UART.h>
 #include <Adafruit_NeoPixel.h>
@@ -122,18 +105,22 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 
 #define COLOR_DRAGON_RED Colors(235,0,0)
 
+#define COLOR_FOREST_GREEN Colors(0,255,8)
+
 #define COLOR_PAGE_ONE_BOTTOM Colors(0,0,20)
 #define COLOR_PAGE_ONE_TOP Colors(0,45,245)
 #define COLOR_PAGE_TWO_BOTTOM Colors(0,0,20)
 #define COLOR_PAGE_TWO_TOP Colors(0,85,185)
-#define COLOR_PAGE_THREE_BOTTOM Colors(0,25,255)
-#define COLOR_PAGE_THREE_TOP Colors(175,175,175)
+#define COLOR_PAGE_THREE_BOTTOM Colors(0,25,220)
+#define COLOR_PAGE_THREE_TOP Colors(108,108,108)
 #define COLOR_PAGE_FOUR_BOTTOM Colors(0,165,38)
 #define COLOR_PAGE_FOUR_TOP Colors(0,235,45)
 
 /*===============================*/
 /*=====Gestion des neopixels=====*/
 /*===============================*/
+
+#define LED_VOID 255
 
 #define LEDS_PIN 9
 #define NUMBER_OF_LEDS 29
@@ -145,7 +132,9 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 Adafruit_NeoPixel leds = Adafruit_NeoPixel(NUMBER_OF_LEDS, LEDS_PIN, NEO_GRB + NEO_KHZ800);
 
 void rgb(byte index, byte red, byte green, byte blue){
-  leds.setPixelColor(index, green, red, blue);
+  if(index != LED_VOID){
+     leds.setPixelColor(index, green, red, blue); 
+  }
 }
 
 void rgb(byte red, byte green, byte blue){
@@ -202,15 +191,266 @@ byte getColumnsIndexOf(byte ledIndex){
 Tween lightAnimationTween;
 char currentLightAnimation;
 
+/*Dragon*/
+#define LIGHT_ANIMATION_DRAGON_LIGHT_PATH_LENGTH 16
+#define LIGHT_ANIMATION_DRAGON_HEAD_SIZE 4
+#define LIGHT_ANIMATION_DRAGON_TAIL_SIZE 7
+
+byte lightPath(byte pathIndex){
+  if(pathIndex == 7 || pathIndex == 8){
+    return LED_VOID;
+  }
+  else if(pathIndex > 8){
+    return pathIndex%2 == 0 ? pathIndex+6 : pathIndex+13;
+  }
+  return pathIndex%2 == 0 ? pathIndex+1 : pathIndex+7;
+}
+
+void lightAnimationInit_Dragon(){
+  lightAnimationTween.transition(-4,LIGHT_ANIMATION_DRAGON_LIGHT_PATH_LENGTH+3, 3200);
+}
+
+void lightAnimationUpdate_Dragon(){
+  int traceStart, traceEnd;
+  byte distanceFromMain;
+  float gradientCursor;
+
+  Colors
+    dragonColor = COLOR_DRAGON_RED,
+    backgroundColor = COLOR_BLACK,
+    finalColor = COLOR_BLACK;
+
+  /*byte lightPath[LIGHT_ANIMATION_DRAGON_LIGHT_PATH_LENGTH]; = {
+    1, 9, 3, 11, 5, 13, 7, LED_VOID, LED_VOID, 15, 23, 17, 25, 19, 27, 21
+  };*/
+
+  byte i, currentLedIndex;
+
+  int currentLightPosition = (int)lightAnimationTween.easeInOutQuadValue();
+  //Main
+  if(currentLightPosition >= 0 && currentLightPosition < LIGHT_ANIMATION_DRAGON_LIGHT_PATH_LENGTH){
+      finalColor = dragonColor;
+
+      currentLedIndex = lightPath(currentLightPosition);
+      if(currentLedIndex != LED_VOID){
+          rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+      }
+  }
+
+  //Head
+  traceStart = currentLightPosition+1;
+  traceEnd = currentLightPosition + LIGHT_ANIMATION_DRAGON_HEAD_SIZE;
+  distanceFromMain = 0;
+  gradientCursor = 0.0;
+
+  for(i=traceStart;i<=traceEnd;i++){
+    if(i >= 0 && i < LIGHT_ANIMATION_DRAGON_LIGHT_PATH_LENGTH){
+        currentLedIndex = lightPath(i);
+        if(currentLedIndex != LED_VOID){
+          distanceFromMain = (byte)abs(currentLightPosition-i);
+          gradientCursor = (1.0/((float)distanceFromMain*0.45)) * 0.98;
+          
+          backgroundColor = currentColorOfLedAtIndex(currentLedIndex);
+          finalColor = backgroundColor.getGradientStep(gradientCursor, dragonColor);
+
+          rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+        }
+    }
+  }
+
+  //Tail
+  traceStart = currentLightPosition-1;
+  traceEnd = currentLightPosition - LIGHT_ANIMATION_DRAGON_TAIL_SIZE;
+  distanceFromMain = 0;
+  gradientCursor = 0.0;
+
+  for(i=traceStart;i<=traceEnd;i++){
+    if(i >= 0 && i < LIGHT_ANIMATION_DRAGON_LIGHT_PATH_LENGTH){
+        currentLedIndex = lightPath(i);
+        if(currentLedIndex != LED_VOID){
+          distanceFromMain = (byte)abs(currentLightPosition-i);
+          gradientCursor = (1.0/((float)distanceFromMain*0.65)) * 0.95;
+          
+          backgroundColor = currentColorOfLedAtIndex(currentLedIndex);
+          finalColor = backgroundColor.getGradientStep(gradientCursor, dragonColor);
+
+          rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+        }
+    }
+  }
+}
+
+/*---------*/
+/*---------*/
+
+/*Forest*/
+#define LIGHT_ANIMATION_FOREST_STEP_NUMBER 6
+#define LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE 2
+#define FOREST_CENTER_LED 11
+
+//On
+byte lightStepLeftOfCenterAtDistance(byte distance){
+  return distance > 3 ? LED_VOID : FOREST_CENTER_LED-distance;
+}
+byte lightStepRightOfCenterAtDistance(byte distance){
+  return distance > 3 ? LED_VOID : FOREST_CENTER_LED+distance;
+}
+byte lightStepTopOfCenterAtDistance(byte distance){
+  if(distance <= 2){
+    FOREST_CENTER_LED+(7*distance);
+  }
+
+  return distance > 5 ? LED_VOID : FOREST_CENTER_LED+12+distance;
+}
+byte lightStepDownOfCenterAtDistance(byte distance){
+  if(distance == 2){return 0;}
+  if(distance <= 1){
+    FOREST_CENTER_LED-(7*distance);
+  }
+
+  return distance > 5 ? LED_VOID : 25-distance+2;
+}
+byte lightStepTopLeftOfCenterAtDistance(byte distance){
+  if(distance == 1 || distance > 4){return LED_VOID;}
+
+  return FOREST_CENTER_LED+7-distance+1;
+}
+byte lightStepTopRightOfCenterAtDistance(byte distance){
+  if(distance == 1 || distance > 4){return LED_VOID;}
+
+  return FOREST_CENTER_LED+7+distance-1;
+}
+byte lightStepDownLeftOfCenterAtDistance(byte distance){
+  if(distance == 1 || distance > 4){return LED_VOID;}
+
+  return FOREST_CENTER_LED-7-distance+1;
+}
+byte lightStepDownRightOfCenterAtDistance(byte distance){
+  if(distance == 1 || distance > 4){return LED_VOID;}
+
+  return FOREST_CENTER_LED-7+distance-1;
+}
+
+void lightAnimationInit_Forest(){
+  lightAnimationTween.transition(-4,LIGHT_ANIMATION_FOREST_STEP_NUMBER+3,1800);
+}
+
+void lightAnimationUpdate_Forest(){
+  int traceStart, traceEnd;
+  byte distanceFromMain;
+  float gradientCursor;
+
+  byte i, currentLedIndex;
+
+  Colors
+    forestColor = COLOR_FOREST_GREEN,
+    backgroundColor = COLOR_BLACK,
+    finalColor = COLOR_BLACK;
+
+    int currentLightPosition = (int)lightAnimationTween.easeInOutQuadValue();
+    byte red, green, blue;
+    byte ledTop, ledDown, ledLeft, ledRight, ledTopLeft, ledTopRight, ledDownLeft, ledDownRight;
+    
+    //Main circle
+    if(currentLightPosition >= 0 && currentLightPosition < LIGHT_ANIMATION_FOREST_STEP_NUMBER){
+      finalColor = forestColor;
+
+      red = finalColor.red();
+      green = finalColor.green();
+      blue = finalColor.blue();
+
+      rgb(lightStepLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+      rgb(lightStepRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+      rgb(lightStepTopOfCenterAtDistance(currentLightPosition), red, green, blue);
+      rgb(lightStepDownOfCenterAtDistance(currentLightPosition), red, green, blue);
+      rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+      rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+      rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+      rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+    }
+
+    //trace after circle
+    traceStart = currentLightPosition-1;
+    traceEnd = currentLightPosition - LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE;
+    distanceFromMain = 0;
+    gradientCursor = 0.0;
+
+    for(i=traceStart;i<=traceEnd;i++){
+      if(i>=0 && i < LIGHT_ANIMATION_FOREST_STEP_NUMBER){
+        distanceFromMain = (byte)abs(currentLightPosition-i);
+        gradientCursor = (1.0/((float)distanceFromMain*0.65)) * 0.95;
+
+        ledLeft = lightStepLeftOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledLeft);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledLeft, finalColor.red(), finalColor.green(), finalColor.blue());
+
+        ledRight = lightStepRightOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledRight);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledRight, finalColor.red(), finalColor.green(), finalColor.blue());
+
+        ledTop = lightStepTopOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledTop);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledTop, finalColor.red(), finalColor.green(), finalColor.blue());
+
+        ledDown = lightStepDownOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledDown);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledDown, finalColor.red(), finalColor.green(), finalColor.blue());
+
+        ledTopLeft = lightStepTopLeftOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledTopLeft);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledTopLeft, finalColor.red(), finalColor.green(), finalColor.blue());
+
+        ledTopRight = lightStepTopRightOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledTopRight);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledTopRight, finalColor.red(), finalColor.green(), finalColor.blue());
+
+        ledDownLeft = lightStepDownLeftOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledDownLeft);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledDownLeft, finalColor.red(), finalColor.green(), finalColor.blue());
+
+        ledDownRight = lightStepDownRightOfCenterAtDistance(i);
+        backgroundColor = currentColorOfLedAtIndex(ledDownRight);
+        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
+        rgb(ledDownRight, finalColor.red(), finalColor.green(), finalColor.blue());
+
+      }
+    }
+}
+
+/*---------*/
+/*---------*/
+
+/*Sparkles*/
+void lightAnimationInit_Sparkles(){
+  lightAnimationTween.transition(0,0,0);
+}
+
+void lightAnimationUpdate_Sparkles(){
+}
+
+/*---------*/
+/*---------*/
+/*---------*/
+
 void applyLightAnimation(){
   switch (currentLightAnimation) {
       case LIGHT_ANIMATION_DRAGON:
+        lightAnimationUpdate_Dragon();
       break;
 
       case LIGHT_ANIMATION_FOREST:
+        lightAnimationUpdate_Forest();
       break;
 
       case LIGHT_ANIMATION_SPARKLES:
+        lightAnimationUpdate_Sparkles();
       break;
 
       default:
@@ -229,15 +469,15 @@ void playLightAnimation(char lightAnimationCode){
 
   switch (currentLightAnimation) {
       case LIGHT_ANIMATION_DRAGON:
-        lightAnimationTween.transition(0,0,0);
+        lightAnimationInit_Dragon();
       break;
 
       case LIGHT_ANIMATION_FOREST:
-        lightAnimationTween.transition(0,0,0);
+        lightAnimationInit_Forest();
       break;
 
       case LIGHT_ANIMATION_SPARKLES:
-        lightAnimationTween.transition(0,0,0);
+        lightAnimationInit_Sparkles();
       break;
       
       default:
@@ -247,7 +487,7 @@ void playLightAnimation(char lightAnimationCode){
 }
 
 void playLightAnimationIfPossible(char lightAnimationCode){
-  if(lightAnimationTween.isEnded()){
+  if(lightAnimationTween.isEnded() && currentLanternMode == LANTERN_MODE_STORY){
       playLightAnimation(lightAnimationCode);
   }
 }
@@ -357,7 +597,7 @@ void tutoBreath(){
 /*=====Gestion du bluetooth=====*/
 /*==============================*/
 #define TIME_WITHOUT_CONNECTION_BEFORE_RETURN_TO_NIGHT_MODE 60000
-unsigned long timeWithoutConnection;
+unsigned int timeWithoutConnection;
 
 #define REQ_PIN 10
 #define RDY_PIN 2
@@ -476,7 +716,7 @@ void rxCallback(uint8_t *buffer, uint8_t len)
 
 #define CHECKING_IF_LANTERN_IS_OPENED_TIME_INTERVAL 1000
 
-unsigned long timeSinceLastLanternOpenedChecking;
+unsigned int timeSinceLastLanternOpenedChecking;
 
 boolean lanternIsClosed(){
   return digitalRead(CLOSED_PIN);
@@ -864,7 +1104,12 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
       else{
         applyAmbiantColor(/*breathing*/true);
       }
+
+      if(!lightAnimationTween.isEnded()){
+        applyLightAnimation();
+      }
     break;
+    //END STORY MODE
 
     case LANTERN_MODE_PRE_TRANSITION:
       bluetoothIsConnected() ? greenLed() : yellowLed();
