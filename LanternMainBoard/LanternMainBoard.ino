@@ -27,10 +27,7 @@
 
 TimeManager time;
 
-//Definition des storyCode
-#define STORY_NO_STORY 'n'
-#define STORY_DRAGON_ENOSHIMA 'd'
-#define STORY_BOUCLE_OR 'o'
+#define TIME_BEFORE_LANTERN_IS_READY 5000
 
 #define DURATION_1_MIN 60000
 #define DURATION_2_MIN 120000
@@ -47,6 +44,11 @@ TimeManager time;
 #define DURATION_13_MIN 780000
 #define DURATION_14_MIN 840000
 #define DURATION_15_MIN 900000
+
+//Definition des storyCode
+#define STORY_NO_STORY 'n'
+#define STORY_DRAGON_ENOSHIMA 'd'
+#define STORY_BOUCLE_OR 'o'
 
 char currentStoryCode, previousLoopStoryCode, previousStoryCode, currentPage, previousPage, previousLoopPage;
 unsigned long transitionToNightDuration;
@@ -71,6 +73,7 @@ void setStory(char newStoryCode){
 #define LANTERN_MODE_TUTO_BEGIN 5
 #define LANTERN_MODE_TUTO_END 6
 #define LANTERN_MODE_LEDS_TEST 7
+#define LANTERN_MODE_PRE_TRANSITION 8
 
 byte currentLanternMode, previousLanternMode, previousLoopLanternMode;
 void setLanternMode(byte newLanternMode){
@@ -106,15 +109,19 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 /*======Gestion des couleurs======*/
 /*================================*/
 
-#define COLOR_TRANSITION_ORANGE Colors(255, 108, 0)
-#define COLOR_NIGHT_ORANGE Colors(152, 38, 0)
 #define COLOR_BLACK Colors(0, 0, 0)
-#define COLOR_PREVIEW_DRAGON_ENOSHIMA Colors(0, 50, 155)
-#define COLOR_PREVIEW_BOUCLE_OR Colors(245, 195, 10)
 #define COLOR_WHITE Colors(255, 255, 255)
 #define COLOR_LIGHT_WHITE Colors(220, 220, 220)
 
+#define COLOR_PRE_TRANSITION_ORANGE Colors(255, 112, 0)
+#define COLOR_TRANSITION_ORANGE Colors(225, 85, 0)
+#define COLOR_NIGHT_ORANGE Colors(152, 38, 0)
+
+#define COLOR_PREVIEW_DRAGON_ENOSHIMA Colors(0, 50, 155)
+#define COLOR_PREVIEW_BOUCLE_OR Colors(245, 195, 10)
+
 #define COLOR_DRAGON_RED Colors(235,0,0)
+
 #define COLOR_PAGE_ONE_BOTTOM Colors(0,0,20)
 #define COLOR_PAGE_ONE_TOP Colors(0,45,245)
 #define COLOR_PAGE_TWO_BOTTOM Colors(0,0,20)
@@ -148,17 +155,10 @@ void rgb(byte red, byte green, byte blue){
   }
 }
 
-void rgbGroup(byte red, byte green, byte blue, byte *group, byte quantity){
-  byte i;
-  
-  for(i=0;i<quantity;i++){
-    rgb(group[i], red, green, blue);
-  }
-}
-
 Colors currentColorOfLedAtIndex(byte index){
   uint32_t rawColor = leds.getPixelColor(index);
 
+  //On utilise le mode GRB, du coup, l'ordre des composantes est inversé
   uint8_t
       green = (uint8_t)(rawColor >> 16),
       red = (uint8_t)(rawColor >>  8),
@@ -189,15 +189,75 @@ byte getColumnsIndexOf(byte ledIndex){
   return (byte)((int)ledIndex - (int)row*NUMBER_OF_LEDS_PER_ROW + NUMBER_OF_LEDS_PER_ROW - 1);
 }
 
-#define LIGHT_ANIMATION_AMBIANT_NONE 0
-#define LIGHT_ANIMATION_AMBIANT_SEA 1
+/*================================*/
+/*=====Gestion des animations=====*/
+/*================================*/
 
-#define LIGHT_ANIMATION_SEQUENCE_NONE 0
-#define LIGHT_ANIMATION_SEQUENCE_DRAGON 1
+//Animations ponctuelles 
+#define LIGHT_ANIMATION_NONE 'n'
+#define LIGHT_ANIMATION_DRAGON 'd'
+#define LIGHT_ANIMATION_FOREST 'f'
+#define LIGHT_ANIMATION_SPARKLES 's'
 
+Tween lightAnimationTween;
+char currentLightAnimation;
+
+void applyLightAnimation(){
+  switch (currentLightAnimation) {
+      case LIGHT_ANIMATION_DRAGON:
+      break;
+
+      case LIGHT_ANIMATION_FOREST:
+      break;
+
+      case LIGHT_ANIMATION_SPARKLES:
+      break;
+
+      default:
+      break;
+  }
+}
+
+void updateLightAnimation(){
+  if(!lightAnimationTween.isEnded()){
+    lightAnimationTween.update(time.delta());
+  }
+}
+
+void playLightAnimation(char lightAnimationCode){
+  currentLightAnimation = lightAnimationCode;
+
+  switch (currentLightAnimation) {
+      case LIGHT_ANIMATION_DRAGON:
+        lightAnimationTween.transition(0,0,0);
+      break;
+
+      case LIGHT_ANIMATION_FOREST:
+        lightAnimationTween.transition(0,0,0);
+      break;
+
+      case LIGHT_ANIMATION_SPARKLES:
+        lightAnimationTween.transition(0,0,0);
+      break;
+      
+      default:
+        lightAnimationTween.transition(0,0,0);
+      break;
+  }
+}
+
+void playLightAnimationIfPossible(char lightAnimationCode){
+  if(lightAnimationTween.isEnded()){
+      playLightAnimation(lightAnimationCode);
+  }
+}
+
+//Animations d'ambiance
 boolean ambiantIsTransitionning;
-byte currentAmbiant, currentSequence;
 Tween ambiantTransitionTween, lightBreathTween;
+
+Colors ledsOriginColor[NUMBER_OF_LEDS];
+Colors ledsTargetColor[NUMBER_OF_LEDS];
 
 void launchAmbiantTransition(unsigned long transitionDuration){
   ambiantIsTransitionning = true;
@@ -212,9 +272,6 @@ void updateAmbiantTransition(){
   ambiantTransitionTween.update(time.delta());
 }
 
-Colors ledsOriginColor[NUMBER_OF_LEDS];
-Colors ledsTargetColor[NUMBER_OF_LEDS];
-
 void updateLightBreath(){
   if(!ambiantIsTransitionning){
     lightBreathTween.update(time.delta());
@@ -223,34 +280,6 @@ void updateLightBreath(){
 
 float getLightBreathAlpha(){
   return (float)lightBreathTween.easeInOutQuartValue() / 255.0;
-}
-
-void breath(byte min, byte max, unsigned long duration, unsigned long delay){
-  if(min > max){
-      byte temp = max;
-      max = min;
-      min = temp;
-  }
-
-  lightBreathTween.transition(min, max, duration, delay);
-  lightBreathTween.loopWithDelay();
-  lightBreathTween.reverseLoop();
-}
-
-void justRoundBreath(){
-  breath(0, 148, 3900, 150);
-}
-
-void simpleAmbiantBreath(){
-  breath(0, 182, 6200, 248);
-}
-
-void tutoBreath(){
-  breath(0, 220, 1500, 150);
-}
-
-void noBreath(){
-  breath(0, 0, 0, 0);
 }
 
 void ambiantTransition(Colors *newLedsTargetColors, unsigned long transitionDuration){
@@ -295,6 +324,35 @@ void applyAmbiantColor(boolean breathing){
   applyAmbiantColor(breathing, false);
 }
 
+//Gestion des differents rythme de respiration
+void breath(byte min, byte max, unsigned long duration, unsigned long delay){
+  if(min > max){
+      byte temp = max;
+      max = min;
+      min = temp;
+  }
+
+  lightBreathTween.transition(min, max, duration, delay);
+  lightBreathTween.loopWithDelay();
+  lightBreathTween.reverseLoop();
+}
+
+void noBreath(){
+  breath(0, 0, 0, 0);
+}
+
+void justRoundBreath(){
+  breath(0, 148, 3900, 150);
+}
+
+void simpleAmbiantBreath(){
+  breath(0, 182, 6200, 248);
+}
+
+void tutoBreath(){
+  breath(0, 220, 1500, 150);
+}
+
 /*==============================*/
 /*=====Gestion du bluetooth=====*/
 /*==============================*/
@@ -311,6 +369,7 @@ Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
 #define BLE_INSTRUCTION_SET_STORY 's'
 #define BLE_INSTRUCTION_SET_STORY_PAGE 'p'
 #define BLE_INSTRUCTION_SET_TRANSITION_TIME 't'
+#define BLE_INSTRUCTION_PLAY_ANIMATION 'a'
 
 #define BLE_PARAM_MODE_PREVIEW 'p'
 #define BLE_PARAM_MODE_STORY 's'
@@ -319,6 +378,11 @@ Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
 #define BLE_PARAM_MODE_TUTO_BEGIN 'b'
 #define BLE_PARAM_MODE_TUTO_END 'e'
 #define BLE_PARAM_MODE_LEDS_TEST 'd'
+#define BLE_PARAM_MODE_PRE_TRANSITION 'r'
+
+boolean bluetoothIsConnected(){
+  return bluetooth.getState() == ACI_EVT_CONNECTED;
+}
 
 void sendMessage(char *messageToSend, uint8_t lengthOfMessageToSend){
   uint8_t *buffer;
@@ -363,6 +427,9 @@ void rxCallback(uint8_t *buffer, uint8_t len)
       else if(bleParamOne == BLE_PARAM_MODE_LEDS_TEST){
           setLanternMode(LANTERN_MODE_LEDS_TEST);
       }
+      else if(bleParamOne == BLE_PARAM_MODE_PRE_TRANSITION){
+          setLanternMode(LANTERN_MODE_PRE_TRANSITION);
+      }
 
       manageLanternMode((currentLanternMode != previousLanternMode), false, false);
   }
@@ -395,16 +462,16 @@ void rxCallback(uint8_t *buffer, uint8_t len)
         default:transitionToNightDuration = DURATION_15_MIN;break;
     }
   }
+  else if(bleInstruction == BLE_INSTRUCTION_PLAY_ANIMATION){
+    playLightAnimationIfPossible(bleParamOne);
+  }
 }
 
-boolean bluetoothIsConnected(){
-  return bluetooth.getState() == ACI_EVT_CONNECTED;
-}
-
 /*==============================*/
 /*==============================*/
 /*==============================*/
 
+//closed/opened
 #define CLOSED_PIN 4
 
 #define CHECKING_IF_LANTERN_IS_OPENED_TIME_INTERVAL 1000
@@ -418,6 +485,18 @@ boolean lanternIsClosed(){
 boolean lanternIsOpen(){
   return !lanternIsClosed();
 }
+
+//Infrared Sensor
+#define INFRARED_SENSOR_PIN A4
+
+boolean childReactiveLanternTransition(){
+  if(time.total() >= (TIME_BEFORE_LANTERN_IS_READY + 2000)){
+      return false;
+  }
+  return false;
+  return digitalRead(INFRARED_SENSOR_PIN);
+}
+
 
 /*==============================*/
 /*======Gestion du volume=======*/
@@ -453,8 +532,6 @@ void updateVolume(){
 /*====Gestion des statuts=======*/
 /*==============================*/
 
-#define TIME_BEFORE_LANTERN_IS_READY 5000
-
 #define RED_STATE_LED_PIN 3
 #define GREEN_STATE_LED_PIN 5
 
@@ -470,11 +547,11 @@ void updateSwitchLedState(){
   previousSwitchStateLed = switchStateLed;
 }
 
-Tween stateLedBreath;
+Tween stateLedBreathTween;
 byte stateLedIntensity;
 void updateStateLedIntensity(){
-  stateLedBreath.update(time.delta());
-  stateLedIntensity = (byte)(stateLedBreath.easeInQuintValue());
+  stateLedBreathTween.update(time.delta());
+  stateLedIntensity = (byte)(stateLedBreathTween.easeInQuintValue());
 }
 
 void redLed(){
@@ -520,6 +597,7 @@ void setup(void)
   bluetooth.setDeviceName("LANTERN");
   
   pinMode(CLOSED_PIN, INPUT);
+  pinMode(INFRARED_SENSOR_PIN, INPUT);
   pinMode(STATE_LED_ON_OFF_PIN, INPUT);
   
   firstLoop = true;
@@ -534,9 +612,9 @@ void setup(void)
   wireDatas.audioVolume = 0;
   stateLedIntensity = 0;
   
-  stateLedBreath.transition(20, 200, 3500, 1000);
-  stateLedBreath.loopWithDelay();
-  stateLedBreath.reverseLoop();
+  stateLedBreathTween.transition(20, 200, 3500, 1000);
+  stateLedBreathTween.loopWithDelay();
+  stateLedBreathTween.reverseLoop();
   
   ambiantIsTransitionning = false;
 
@@ -550,6 +628,9 @@ void setup(void)
 
   transitionToNightDuration = DURATION_15_MIN;
   transitionToNightStarted = false;
+
+  lightAnimationTween.transition(0,0,0);
+  currentLightAnimation = LIGHT_ANIMATION_NONE;
 
   time.init();
 }
@@ -572,6 +653,7 @@ void loop()
   updateSwitchLedState();
 
   updateAmbiantTransition();
+  updateLightAnimation();
   updateLightBreath();
   
   //On attend un peu pour etre sur que la secondary board est prete à recevoir des données
@@ -620,6 +702,10 @@ void loop()
   
   time.loopEnd();
 }
+
+/*=======================================*/
+/*====Gestion des modes de la lantern====*/
+/*=======================================*/
 
 void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageChanged){
   boolean checkIfLanternIsOpened, nextTurnNeedAModeChanged;
@@ -779,6 +865,22 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
         applyAmbiantColor(/*breathing*/true);
       }
     break;
+
+    case LANTERN_MODE_PRE_TRANSITION:
+      bluetoothIsConnected() ? greenLed() : yellowLed();
+      
+      if(modeChanged){
+        for(i=0;i<NUMBER_OF_LEDS;i++){
+          newLedsTargetColors[i] = COLOR_PRE_TRANSITION_ORANGE;
+        }
+
+        ambiantTransition(newLedsTargetColors);
+        justRoundBreath();
+      }
+      else{
+        applyAmbiantColor(/*breathing*/true);
+      }
+    break;
     
     case LANTERN_MODE_TRANSITION:
       orangeLed();
@@ -790,12 +892,13 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
           newLedsTargetColors[i] = COLOR_TRANSITION_ORANGE;
         }
 
-        ambiantTransition(newLedsTargetColors);
+        ambiantTransition(newLedsTargetColors, 800);
         noBreath();
       }
       else{
         applyAmbiantColor(/*breathing*/false);
 
+        //Si la transition pour arriver au mode transition est finie, on lance la transition vers le mode nuit
         if(ambiantTransitionTween.isEnded()){
           if(transitionToNightStarted){
               newLedsTargetColors[0] = COLOR_NIGHT_ORANGE;
@@ -830,6 +933,11 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
       }
       else{
         applyAmbiantColor(/*breathing*/true);
+      }
+
+      if(childReactiveLanternTransition()){
+        setLanternMode(LANTERN_MODE_TRANSITION);
+        nextTurnNeedAModeChanged = true;
       }
 
       //NIGHT MODE END
