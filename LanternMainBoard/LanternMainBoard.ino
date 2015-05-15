@@ -13,7 +13,7 @@ TimeManager time;
 #define TIME_BEFORE_LANTERN_IS_READY 5000
 
 #define DURATION_1_MIN 60000
-#define DURATION_2_MIN 120000
+/*#define DURATION_2_MIN 120000
 #define DURATION_3_MIN 180000
 #define DURATION_4_MIN 240000
 #define DURATION_5_MIN 300000
@@ -26,7 +26,7 @@ TimeManager time;
 #define DURATION_12_MIN 720000
 #define DURATION_13_MIN 780000
 #define DURATION_14_MIN 840000
-#define DURATION_15_MIN 900000
+#define DURATION_15_MIN 900000*/
 
 //Definition des storyCode
 #define STORY_NO_STORY 'n'
@@ -111,8 +111,8 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 #define COLOR_PAGE_ONE_TOP Colors(0,45,245)
 #define COLOR_PAGE_TWO_BOTTOM Colors(0,0,20)
 #define COLOR_PAGE_TWO_TOP Colors(0,85,185)
-#define COLOR_PAGE_THREE_BOTTOM Colors(0,25,220)
-#define COLOR_PAGE_THREE_TOP Colors(108,108,108)
+#define COLOR_PAGE_THREE_BOTTOM Colors(0,8,108)
+#define COLOR_PAGE_THREE_TOP Colors(60,60,60)
 #define COLOR_PAGE_FOUR_BOTTOM Colors(0,165,38)
 #define COLOR_PAGE_FOUR_TOP Colors(0,235,45)
 
@@ -168,7 +168,7 @@ byte getRowIndexOfLed(byte ledIndex){
   return (byte)(ledIndex/NUMBER_OF_LEDS_PER_ROW)+1;
 }
 
-byte getColumnsIndexOf(byte ledIndex){
+/*byte getColumnsIndexOf(byte ledIndex){
   if(ledIndex == 0){
     return 3;
   }
@@ -176,7 +176,7 @@ byte getColumnsIndexOf(byte ledIndex){
   byte row = getRowIndexOfLed(ledIndex);
 
   return (byte)((int)ledIndex - (int)row*NUMBER_OF_LEDS_PER_ROW + NUMBER_OF_LEDS_PER_ROW - 1);
-}
+}*/
 
 /*================================*/
 /*=====Gestion des animations=====*/
@@ -203,7 +203,7 @@ byte lightPath(byte pathIndex){
   else if(pathIndex > 8){
     return pathIndex%2 == 0 ? pathIndex+6 : pathIndex+13;
   }
-  return pathIndex%2 == 0 ? pathIndex+1 : pathIndex+7;
+  return pathIndex%2 == 0 ? pathIndex+1 : pathIndex+8;
 }
 
 void lightAnimationInit_Dragon(){
@@ -219,10 +219,6 @@ void lightAnimationUpdate_Dragon(){
     dragonColor = COLOR_DRAGON_RED,
     backgroundColor = COLOR_BLACK,
     finalColor = COLOR_BLACK;
-
-  /*byte lightPath[LIGHT_ANIMATION_DRAGON_LIGHT_PATH_LENGTH]; = {
-    1, 9, 3, 11, 5, 13, 7, LED_VOID, LED_VOID, 15, 23, 17, 25, 19, 27, 21
-  };*/
 
   byte i, currentLedIndex;
 
@@ -297,7 +293,7 @@ byte lightStepRightOfCenterAtDistance(byte distance){
 }
 byte lightStepTopOfCenterAtDistance(byte distance){
   if(distance <= 2){
-    FOREST_CENTER_LED+(7*distance);
+    return FOREST_CENTER_LED+(7*distance);
   }
 
   return distance > 5 ? LED_VOID : FOREST_CENTER_LED+12+distance;
@@ -305,7 +301,7 @@ byte lightStepTopOfCenterAtDistance(byte distance){
 byte lightStepDownOfCenterAtDistance(byte distance){
   if(distance == 2){return 0;}
   if(distance <= 1){
-    FOREST_CENTER_LED-(7*distance);
+    return FOREST_CENTER_LED-(7*distance);
   }
 
   return distance > 5 ? LED_VOID : 25-distance+2;
@@ -332,7 +328,7 @@ byte lightStepDownRightOfCenterAtDistance(byte distance){
 }
 
 void lightAnimationInit_Forest(){
-  lightAnimationTween.transition(-4,LIGHT_ANIMATION_FOREST_STEP_NUMBER+3,1800);
+  lightAnimationTween.transition(0,LIGHT_ANIMATION_FOREST_STEP_NUMBER,800);
 }
 
 void lightAnimationUpdate_Forest(){
@@ -347,7 +343,7 @@ void lightAnimationUpdate_Forest(){
     backgroundColor = COLOR_BLACK,
     finalColor = COLOR_BLACK;
 
-    int currentLightPosition = (int)lightAnimationTween.easeInOutQuadValue();
+    int currentLightPosition = (int)lightAnimationTween.linearValue();
     byte red, green, blue;
     byte ledTop, ledDown, ledLeft, ledRight, ledTopLeft, ledTopRight, ledDownLeft, ledDownRight;
     
@@ -359,18 +355,24 @@ void lightAnimationUpdate_Forest(){
       green = finalColor.green();
       blue = finalColor.blue();
 
-      rgb(lightStepLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
-      rgb(lightStepRightOfCenterAtDistance(currentLightPosition), red, green, blue);
-      rgb(lightStepTopOfCenterAtDistance(currentLightPosition), red, green, blue);
-      rgb(lightStepDownOfCenterAtDistance(currentLightPosition), red, green, blue);
-      rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
-      rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition), red, green, blue);
-      rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
-      rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+      if (currentLightPosition == 0)
+      {
+        rgb(FOREST_CENTER_LED, red, green, blue);
+      }
+      else{
+        rgb(lightStepLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+        rgb(lightStepRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+        rgb(lightStepTopOfCenterAtDistance(currentLightPosition), red, green, blue);
+        rgb(lightStepDownOfCenterAtDistance(currentLightPosition), red, green, blue);
+        rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+        rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+        rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+        rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+      }
     }
 
     //trace after circle
-    traceStart = currentLightPosition-1;
+    /*traceStart = currentLightPosition-1;
     traceEnd = currentLightPosition - LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE;
     distanceFromMain = 0;
     gradientCursor = 0.0;
@@ -421,7 +423,7 @@ void lightAnimationUpdate_Forest(){
         rgb(ledDownRight, finalColor.red(), finalColor.green(), finalColor.blue());
 
       }
-    }
+    }*/
 }
 
 /*---------*/
@@ -685,8 +687,8 @@ void rxCallback(uint8_t *buffer, uint8_t len)
   }
   else if(bleInstruction == BLE_INSTRUCTION_SET_TRANSITION_TIME){
     switch (bleParamOne) {
-        case '1':transitionToNightDuration = DURATION_1_MIN;break;
-        case '2':transitionToNightDuration = DURATION_2_MIN;break;
+        //case '1':transitionToNightDuration = DURATION_1_MIN;break;
+        /*case '2':transitionToNightDuration = DURATION_2_MIN;break;
         case '3':transitionToNightDuration = DURATION_3_MIN;break;
         case '4':transitionToNightDuration = DURATION_4_MIN;break;
         case '5':transitionToNightDuration = DURATION_5_MIN;break;
@@ -698,8 +700,8 @@ void rxCallback(uint8_t *buffer, uint8_t len)
         case 'b':transitionToNightDuration = DURATION_11_MIN;break;
         case 'c':transitionToNightDuration = DURATION_12_MIN;break;
         case 'd':transitionToNightDuration = DURATION_13_MIN;break;
-        case 'e':transitionToNightDuration = DURATION_14_MIN;break;
-        default:transitionToNightDuration = DURATION_15_MIN;break;
+        case 'e':transitionToNightDuration = DURATION_14_MIN;break;*/
+        //default:transitionToNightDuration = DURATION_15_MIN;break;
     }
   }
   else if(bleInstruction == BLE_INSTRUCTION_PLAY_ANIMATION){
@@ -866,7 +868,7 @@ void setup(void)
   currentPage = '0';
   previousPage = '0';
 
-  transitionToNightDuration = DURATION_15_MIN;
+  transitionToNightDuration = DURATION_1_MIN;
   transitionToNightStarted = false;
 
   lightAnimationTween.transition(0,0,0);
