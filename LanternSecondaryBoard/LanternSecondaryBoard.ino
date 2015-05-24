@@ -16,6 +16,9 @@
 #include <EasyTransferI2C.h>
 
 #include <TimeManager.h>
+#include <Tween.h>
+
+TimeManager time;
 
 /*==================================================*/
 /*=========Communication avec la main board=========*/
@@ -27,7 +30,8 @@
 EasyTransferI2C ET;
 
 struct WireDatas {
-    int actionIdentifier;
+    char actionIdentifier;
+    char targetSound; 
 } wireDatas;
 
 void receive(int numBytes) {}
@@ -38,9 +42,80 @@ void receive(int numBytes) {}
 
 #define SPEAKER_PIN 9
 #define SD_CARD_PIN 10
-TMRpcm audio;
+#define MAX_VOLUME 6
+#define MIN_VOLUME 0
 
-TimeManager time;
+#define SOUND_IDENTIFIER_NONE 'n'
+
+TMRpcm audio;
+Tween volumeTransitionTween;
+byte currentVolume;
+boolean transitionningInProgress;
+char currentSoundIdentifier;
+boolean soundOff;
+
+void stopAudio(){
+  audio.setVolume(0);
+  audio.volume(0);
+  audio.stopPlayback();
+
+  soundOff = true;
+}
+
+void playAudio(char soundIdentifier){
+  currentSoundIdentifier = soundIdentifier;
+
+  switch(currentSoundIdentifier){
+    case SOUND_IDENTIFIER_NONE:
+      stopAudio();
+    break;
+
+    default:
+      stopAudio();
+    break;
+  }
+}
+
+void playAudio(){
+  playAudio(currentSoundIdentifier);
+}
+
+void changeVolume(byte newVolume){
+  currentVolume = newVolume;
+  currentVolume = currentVolume < MIN_VOLUME ? MIN_VOLUME : currentVolume;
+  currentVolume = currentVolume > MAX_VOLUME ? MAX_VOLUME : currentVolume;
+  
+  if (currentVolume <= 0)
+  {
+    stopAudio();
+  }
+  else{
+    soundOff = false;
+    audio.setVolume(currentVolume-1);
+    audio.volume(1);
+  }
+}
+
+void volumeTransitionTo(byte newVolume){
+  volumeTransitionTween.transition(currentVolume, newVolume, 800);
+  transitionningInProgress = true;
+}
+
+void updateVolume(){
+  if(transitionningInProgress){
+    volumeTransitionTween.update(time.delta());
+    
+    changeVolume((byte)volumeTransitionTween.linearValue());
+  }
+
+  if (volumeTransitionTween.isEnded())
+  {
+    transitionningInProgress = false;
+  }
+}
+
+/*---------------*/
+
 boolean firstLoop;
 
 void setup(void)
@@ -63,35 +138,42 @@ void setup(void)
     Serial.println("error SD");
     return;
   }
-  audio.volume(1);
-  audio.setVolume(5);
-  audio.quality(1);
-  
-  tone(SPEAKER_PIN, 440, 1500);
-  
-  audio.play("klax.wav");
 
-  delay(2000);
+  changeVolume(MAX_VOLUME);
+  audio.quality(1);
 
   firstLoop = true;
+  transitionningInProgress = false;
+
+  soundOff = false;
 
   time.init();
 }
 
+boolean testTransition;
+
 void loop()
 {
-  
-  
-  audio.play("klax.wav");
-  
   time.loopStart();
-  
+
   if(firstLoop){
-    
+    testTransition = false;
     firstLoop = false;
   }
-  
-  delay(5000);
+
+  updateVolume();
+
+  if (time.total() > 10000 && !testTransition)
+  {
+    volumeTransitionTo(MIN_VOLUME);
+    testTransition = true;
+  }
+
+  if (!audio.isPlaying() && !soundOff)
+  {
+    audio.play("klax.wav");
+  }
+
   if(ET.receiveData()){
     switch(wireDatas.actionIdentifier){
       case 1:

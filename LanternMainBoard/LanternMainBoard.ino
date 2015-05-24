@@ -777,24 +777,48 @@ void updateVolume(){
 #define RED_STATE_LED_PIN 3
 #define GREEN_STATE_LED_PIN 5
 
+//#define STATE_LED_ON_OFF_PIN A2
+//boolean stateLedOn, previousSwitchStateLed;
+
+//Le bouton du rotary encoder permet d'éteindre la led de statut
+/*void updateSwitchLedState(){
+  boolean switchStateLed = digitalRead(STATE_LED_ON_OFF_PIN);
+  if(switchStateLed != previousSwitchStateLed && !switchStateLed){
+    stateLedOn = !stateLedOn;
+  }
+  previousSwitchStateLed = switchStateLed;
+}*/
+
+/*Tween stateLedBreathTween;
+byte stateLedIntensity;
+void updateStateLedIntensity(){
+  stateLedBreathTween.update(time.delta());
+  stateLedIntensity = (byte)(stateLedBreathTween.easeInQuintValue());
+}*/
+
 void redLed(){
-  analogWrite(RED_STATE_LED_PIN, 220);
+  //analogWrite(RED_STATE_LED_PIN, stateLedOn ? stateLedIntensity : 0);
+  analogWrite(RED_STATE_LED_PIN, 180);
   analogWrite(GREEN_STATE_LED_PIN, 0);
 }
 
 void greenLed(){
   analogWrite(RED_STATE_LED_PIN, 0);
-  analogWrite(GREEN_STATE_LED_PIN, 220);
+  analogWrite(GREEN_STATE_LED_PIN, 180);
 }
 
 void yellowLed(){
-  analogWrite(RED_STATE_LED_PIN, 147);
-  analogWrite(GREEN_STATE_LED_PIN, 147);
+  analogWrite(GREEN_STATE_LED_PIN, 120);
+  analogWrite(GREEN_STATE_LED_PIN, 120);
+  /*analogWrite(RED_STATE_LED_PIN, stateLedOn ? stateLedIntensity/1.5 : 0);
+  analogWrite(GREEN_STATE_LED_PIN, stateLedOn ? stateLedIntensity/1.5 : 0);*/
 }
 
 void orangeLed(){
-  analogWrite(RED_STATE_LED_PIN, 110);
-  analogWrite(GREEN_STATE_LED_PIN, 28);
+  analogWrite(GREEN_STATE_LED_PIN, 90);
+  analogWrite(GREEN_STATE_LED_PIN, 23);
+  /*analogWrite(RED_STATE_LED_PIN, stateLedOn ? stateLedIntensity/2 : 0);
+  analogWrite(GREEN_STATE_LED_PIN, stateLedOn ? stateLedIntensity/8 : 0);*/
 }
 
 boolean firstLoop, lanternReady;
@@ -821,15 +845,28 @@ void setup(void)
   
   pinMode(CLOSED_PIN, INPUT);
   pinMode(INFRARED_SENSOR_PIN, INPUT);
+
+  firstLoop = true;
+  lanternReady = false;
+
+  //pinMode(STATE_LED_ON_OFF_PIN, INPUT);
   
   firstLoop = true;
   lanternReady = false;
+  /*stateLedOn = true;
+  previousSwitchStateLed = LOW;*/
   
   previousLanternMode = LANTERN_MODE_INIT;
   currentLanternMode = LANTERN_MODE_INIT;
   previousLoopLanternMode = LANTERN_MODE_INIT;
   
   wireDatas.audioVolume = 0;
+
+  //stateLedIntensity = 0;
+  
+  /*stateLedBreathTween.transition(20, 200, 3500, 1000);
+  stateLedBreathTween.loopWithDelay();
+  stateLedBreathTween.reverseLoop();*/
   
   ambiantIsTransitionning = false;
 
@@ -863,6 +900,9 @@ void loop()
   pageChanged = currentPage != previousLoopPage;
 
   time.loopStart();
+
+  /*updateStateLedIntensity();
+  updateSwitchLedState();*/
 
   updateAmbiantTransition();
   updateLightAnimation();
