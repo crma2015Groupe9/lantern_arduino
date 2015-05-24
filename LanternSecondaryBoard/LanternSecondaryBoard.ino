@@ -60,16 +60,18 @@ void setup(void)
 
   audio.speakerPin = SPEAKER_PIN;
   if(!SD.begin(SD_CARD_PIN)){
+    Serial.println("error SD");
     return;
   }
   audio.volume(1);
-  audio.setVolume(7);
+  audio.setVolume(5);
+  audio.quality(1);
   
   tone(SPEAKER_PIN, 440, 1500);
   
-  delay(2000);
-  
   audio.play("klax.wav");
+
+  delay(2000);
 
   firstLoop = true;
 
@@ -78,17 +80,18 @@ void setup(void)
 
 void loop()
 {
-  delay(2000);
+  
   
   audio.play("klax.wav");
   
   time.loopStart();
   
   if(firstLoop){
-  
+    
     firstLoop = false;
   }
   
+  delay(5000);
   if(ET.receiveData()){
     switch(wireDatas.actionIdentifier){
       case 1:
