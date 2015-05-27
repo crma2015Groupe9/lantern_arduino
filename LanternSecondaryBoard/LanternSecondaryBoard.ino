@@ -27,11 +27,17 @@ TimeManager time;
 #define MAIN_BOARD_ADDRESS 4
 #define SECONDARY_BOARD_ADDRESS 9
 
+#define WIRE_ACTION_START_LANTERN 0
+#define WIRE_ACTION_PLAY_SOUND 1
+#define WIRE_ACTION_STOP_SOUND 2
+#define WIRE_ACTION_CHANGE_VOLUME_UP 3
+#define WIRE_ACTION_CHANGE_VOLUME_DOWN 4
+
 EasyTransferI2C ET;
 
 struct WireDatas {
-    char actionIdentifier;
-    char targetSound; 
+    byte actionIdentifier;
+    char soundFileIdentifier;
 } wireDatas;
 
 void receive(int numBytes) {}
@@ -42,10 +48,21 @@ void receive(int numBytes) {}
 
 #define SPEAKER_PIN 9
 #define SD_CARD_PIN 10
-#define MAX_VOLUME 6
+#define MAX_VOLUME 5
 #define MIN_VOLUME 0
 
 #define SOUND_IDENTIFIER_NONE 'n'
+
+#define SOUND_IDENTIFIER_CONNECT 'c'
+#define SOUND_IDENTIFIER_INTERACTION_REQUEST 'r'
+
+#define SOUND_IDENTIFIER_LOOP_FOREST 'f'
+#define SOUND_IDENTIFIER_LOOP_WAVE 'w'
+#define SOUND_IDENTIFIER_LOOP_MUSIC 'm'
+
+#define SOUND_IDENTIFIER_EVENT_DRAGON 'd'
+#define SOUND_IDENTIFIER_EVENT_SPARKLES 's'
+#define SOUND_IDENTIFIER_EVENT_TREES 't'
 
 TMRpcm audio;
 Tween volumeTransitionTween;
@@ -62,42 +79,91 @@ void stopAudio(){
   soundOff = true;
 }
 
-void playAudio(char soundIdentifier){
+void changeVolume(byte newVolume, boolean force){
+  if(currentVolume != newVolume || force){
+    currentVolume = newVolume;
+    currentVolume = currentVolume < MIN_VOLUME ? MIN_VOLUME : currentVolume;
+    currentVolume = currentVolume > MAX_VOLUME ? MAX_VOLUME : currentVolume;
+    
+    if (currentVolume <= 0)
+    {
+      stopAudio();
+    }
+    else{
+      soundOff = false;
+      audio.volume(1);
+      audio.setVolume(currentVolume-1);
+    }
+  }
+}
+
+void changeVolume(byte newVolume){
+  changeVolume(newVolume, false);
+}
+
+void playAudio(char soundIdentifier, boolean volumeTransition){
+  boolean volumeZero = false;
   currentSoundIdentifier = soundIdentifier;
 
   switch(currentSoundIdentifier){
     case SOUND_IDENTIFIER_NONE:
+      volumeZero = true;
       stopAudio();
     break;
 
+    case SOUND_IDENTIFIER_CONNECT:
+      audio.play("icon.wav");
+    break;
+
+    case SOUND_IDENTIFIER_INTERACTION_REQUEST:
+      audio.play("icon.wav");
+    break;
+
+    case SOUND_IDENTIFIER_LOOP_MUSIC:
+      audio.play("icon.wav");
+    break;
+
+    case SOUND_IDENTIFIER_LOOP_FOREST:
+      audio.play("lfor.wav");
+    break;
+
+    case SOUND_IDENTIFIER_LOOP_WAVE:
+      audio.play("lmer.wav");
+    break;
+
+    case SOUND_IDENTIFIER_EVENT_TREES:
+      audio.play("efor.wav");
+    break;
+
+    case SOUND_IDENTIFIER_EVENT_DRAGON:
+      audio.play("edra.wav");
+    break;
+
+    case SOUND_IDENTIFIER_EVENT_SPARKLES:
+      audio.play("efee.wav");
+    break;
+
     default:
+      volumeZero = true;
       stopAudio();
     break;
   }
+
+  if (!volumeZero){
+    changeVolume(currentVolume, true);
+  }
+}
+
+void playAudio(char soundIdentifier){
+  playAudio(soundIdentifier, false);
 }
 
 void playAudio(){
   playAudio(currentSoundIdentifier);
 }
 
-void changeVolume(byte newVolume){
-  currentVolume = newVolume;
-  currentVolume = currentVolume < MIN_VOLUME ? MIN_VOLUME : currentVolume;
-  currentVolume = currentVolume > MAX_VOLUME ? MAX_VOLUME : currentVolume;
-  
-  if (currentVolume <= 0)
-  {
-    stopAudio();
-  }
-  else{
-    soundOff = false;
-    audio.setVolume(currentVolume-1);
-    audio.volume(1);
-  }
-}
-
 void volumeTransitionTo(byte newVolume){
-  volumeTransitionTween.transition(currentVolume, newVolume, 800);
+  volumeTransitionTween.transition(currentVolume, newVolume, 8000);
   transitionningInProgress = true;
 }
 
@@ -117,6 +183,7 @@ void updateVolume(){
 /*---------------*/
 
 boolean firstLoop;
+byte soundToRead;
 
 void setup(void)
 { 
@@ -132,13 +199,14 @@ void setup(void)
   //Gestion de l'audio
   
   pinMode(SPEAKER_PIN, OUTPUT);
-
+  
   audio.speakerPin = SPEAKER_PIN;
   if(!SD.begin(SD_CARD_PIN)){
     Serial.println("error SD");
     return;
   }
-
+  
+  currentVolume = MIN_VOLUME;
   changeVolume(MAX_VOLUME);
   audio.quality(1);
 
@@ -147,39 +215,45 @@ void setup(void)
 
   soundOff = false;
 
+  soundToRead = 1;
+
   time.init();
 }
-
-boolean testTransition;
 
 void loop()
 {
   time.loopStart();
 
   if(firstLoop){
-    testTransition = false;
     firstLoop = false;
   }
 
   updateVolume();
 
-  if (time.total() > 10000 && !testTransition)
-  {
-    volumeTransitionTo(MIN_VOLUME);
-    testTransition = true;
-  }
-
-  if (!audio.isPlaying() && !soundOff)
-  {
-    audio.play("klax.wav");
+  if (!audio.isPlaying()){
+    playAudio(SOUND_IDENTIFIER_CONNECT);
   }
 
   if(ET.receiveData()){
     switch(wireDatas.actionIdentifier){
-      case 1:
+      case WIRE_ACTION_START_LANTERN:
+        playAudio(SOUND_IDENTIFIER_CONNECT);
+      break;
+
+      case WIRE_ACTION_PLAY_SOUND:
+        playAudio(wireDatas.soundFileIdentifier);
+      break;
+
+      case WIRE_ACTION_STOP_SOUND:
+        volumeTransitionTo(MIN_VOLUME);
+      break;
+
+      case WIRE_ACTION_CHANGE_VOLUME_UP:
+        changeVolume(currentVolume+1);
       break;
       
-      case 2:
+      case WIRE_ACTION_CHANGE_VOLUME_DOWN:
+        changeVolume(currentVolume-1);
       break;
       
       default:

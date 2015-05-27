@@ -48,18 +48,18 @@ void setStory(char newStoryCode){
 }
 
 //Definition des modes de la veilleuse
-#define LANTERN_MODE_INIT 0
-#define LANTERN_MODE_PREVIEW 1
-#define LANTERN_MODE_STORY 2
-#define LANTERN_MODE_TRANSITION 3
-#define LANTERN_MODE_NIGHT 4
-#define LANTERN_MODE_TUTO_BEGIN 5
-#define LANTERN_MODE_TUTO_END 6
-#define LANTERN_MODE_LEDS_TEST 7
-#define LANTERN_MODE_PRE_TRANSITION 8
+#define LANTERN_MODE_INIT 'i'
+#define LANTERN_MODE_PREVIEW 'p'
+#define LANTERN_MODE_STORY 's'
+#define LANTERN_MODE_TRANSITION 't'
+#define LANTERN_MODE_NIGHT 'n'
+#define LANTERN_MODE_TUTO_BEGIN 'b'
+#define LANTERN_MODE_TUTO_END 'e'
+#define LANTERN_MODE_LEDS_TEST 'd'
+#define LANTERN_MODE_PRE_TRANSITION 'r'
 
-byte currentLanternMode, previousLanternMode, previousLoopLanternMode;
-void setLanternMode(byte newLanternMode){
+char currentLanternMode, previousLanternMode, previousLoopLanternMode;
+void setLanternMode(char newLanternMode){
   previousLanternMode = currentLanternMode;
   currentLanternMode = newLanternMode;
 }
@@ -73,19 +73,29 @@ void setLanternMode(byte newLanternMode){
 
 #define WIRE_ACTION_START_LANTERN 0
 #define WIRE_ACTION_PLAY_SOUND 1
-#define WIRE_ACTION_CHANGE_VOLUME 2
+#define WIRE_ACTION_STOP_SOUND 2
+#define WIRE_ACTION_CHANGE_VOLUME_UP 3
+#define WIRE_ACTION_CHANGE_VOLUME_DOWN 4
 
 EasyTransferI2C ET;
 
 struct WireDatas {
     byte actionIdentifier;
-    byte audioVolume;
-    byte soundFileIdentifier;
+    char soundFileIdentifier;
 } wireDatas;
 
 void launchActionOnSecondaryBoard(byte actionIdentifier){
   wireDatas.actionIdentifier = actionIdentifier;
   ET.sendData(SECONDARY_BOARD_ADDRESS);
+}
+
+void playSound(char soundFileIdentifier){
+  wireDatas.soundFileIdentifier = soundFileIdentifier;
+  launchActionOnSecondaryBoard(WIRE_ACTION_PLAY_SOUND);
+}
+
+void stopSound(){
+  launchActionOnSecondaryBoard(WIRE_ACTION_STOP_SOUND);
 }
 
 /*================================*/
@@ -612,15 +622,16 @@ Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
 #define BLE_INSTRUCTION_SET_STORY_PAGE 'p'
 #define BLE_INSTRUCTION_SET_TRANSITION_TIME 't'
 #define BLE_INSTRUCTION_PLAY_ANIMATION 'a'
+#define BLE_INSTRUCTION_PLAY_SOUND 'n'
 
-#define BLE_PARAM_MODE_PREVIEW 'p'
+/*#define BLE_PARAM_MODE_PREVIEW 'p'
 #define BLE_PARAM_MODE_STORY 's'
 #define BLE_PARAM_MODE_TRANSITION 't'
 #define BLE_PARAM_MODE_NIGHT 'n'
 #define BLE_PARAM_MODE_TUTO_BEGIN 'b'
 #define BLE_PARAM_MODE_TUTO_END 'e'
 #define BLE_PARAM_MODE_LEDS_TEST 'd'
-#define BLE_PARAM_MODE_PRE_TRANSITION 'r'
+#define BLE_PARAM_MODE_PRE_TRANSITION 'r'*/
 
 boolean bluetoothIsConnected(){
   return bluetooth.getState() == ACI_EVT_CONNECTED;
@@ -648,30 +659,7 @@ void rxCallback(uint8_t *buffer, uint8_t len)
   }
 
   if(bleInstruction == BLE_INSTRUCTION_SET_MODE){
-      if(bleParamOne == BLE_PARAM_MODE_PREVIEW){
-          setLanternMode(LANTERN_MODE_PREVIEW);
-      }
-      else if(bleParamOne == BLE_PARAM_MODE_STORY){
-          setLanternMode(LANTERN_MODE_STORY);
-      }
-      else if(bleParamOne == BLE_PARAM_MODE_TRANSITION){
-          setLanternMode(LANTERN_MODE_TRANSITION);
-      }
-      else if(bleParamOne == BLE_PARAM_MODE_NIGHT){
-          setLanternMode(LANTERN_MODE_NIGHT);
-      }
-      else if(bleParamOne == BLE_PARAM_MODE_TUTO_BEGIN){
-          setLanternMode(LANTERN_MODE_TUTO_BEGIN);
-      }
-      else if(bleParamOne == BLE_PARAM_MODE_TUTO_END){
-          setLanternMode(LANTERN_MODE_TUTO_END);
-      }
-      else if(bleParamOne == BLE_PARAM_MODE_LEDS_TEST){
-          setLanternMode(LANTERN_MODE_LEDS_TEST);
-      }
-      else if(bleParamOne == BLE_PARAM_MODE_PRE_TRANSITION){
-          setLanternMode(LANTERN_MODE_PRE_TRANSITION);
-      }
+      setLanternMode(bleParamOne);
 
       manageLanternMode((currentLanternMode != previousLanternMode), false, false);
   }
@@ -706,6 +694,9 @@ void rxCallback(uint8_t *buffer, uint8_t len)
   }
   else if(bleInstruction == BLE_INSTRUCTION_PLAY_ANIMATION){
     playLightAnimationIfPossible(bleParamOne);
+  }
+  else if(bleInstruction == BLE_INSTRUCTION_PLAY_SOUND){
+    playSound(bleParamOne);
   }
 }
 
@@ -747,8 +738,6 @@ boolean childReactiveLanternTransition(){
 
 #define ROTARY_LEFT_PIN A1
 #define ROTARY_RIGHT_PIN A0
-#define MIN_VOLUME 0
-#define MAX_VOLUME 7
 
 Rotary volumeRotaryEncoder = Rotary(ROTARY_LEFT_PIN, ROTARY_RIGHT_PIN);
 
@@ -756,17 +745,12 @@ void updateVolume(){
     unsigned char volumeRotaryEncoderDirection = volumeRotaryEncoder.process();
     
     if(volumeRotaryEncoderDirection){
-      volumeRotaryEncoderDirection == DIR_CW ? wireDatas.audioVolume++ : wireDatas.audioVolume--;
-      
-      if(wireDatas.audioVolume < MIN_VOLUME){
-        wireDatas.audioVolume = MIN_VOLUME;
+      if(volumeRotaryEncoderDirection == DIR_CW){
+        launchActionOnSecondaryBoard(WIRE_ACTION_CHANGE_VOLUME_UP);
       }
-      
-      if(wireDatas.audioVolume > MAX_VOLUME){
-        wireDatas.audioVolume = MAX_VOLUME;
-      }
-      
-      launchActionOnSecondaryBoard(WIRE_ACTION_CHANGE_VOLUME);     
+      else{
+        launchActionOnSecondaryBoard(WIRE_ACTION_CHANGE_VOLUME_DOWN);
+      }   
     }
 }
 
@@ -860,7 +844,7 @@ void setup(void)
   currentLanternMode = LANTERN_MODE_INIT;
   previousLoopLanternMode = LANTERN_MODE_INIT;
   
-  wireDatas.audioVolume = 0;
+  wireDatas.soundFileIdentifier = 'n';
 
   //stateLedIntensity = 0;
   
@@ -921,7 +905,6 @@ void loop()
     if(lanternReady){
       bluetooth.begin();
       
-      wireDatas.audioVolume = 7;
       launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
       setLanternMode(LANTERN_MODE_NIGHT);
 
