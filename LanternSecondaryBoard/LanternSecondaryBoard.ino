@@ -55,6 +55,7 @@ void receive(int numBytes) {}
 
 #define SOUND_IDENTIFIER_CONNECT 'c'
 #define SOUND_IDENTIFIER_INTERACTION_REQUEST 'r'
+#define SOUND_IDENTIFIER_INTERACTION_DONE 'o'
 
 #define SOUND_IDENTIFIER_LOOP_FOREST 'f'
 #define SOUND_IDENTIFIER_LOOP_WAVE 'w'
@@ -105,6 +106,8 @@ void playAudio(char soundIdentifier, boolean volumeTransition){
   boolean volumeZero = false;
   currentSoundIdentifier = soundIdentifier;
 
+  audio.disable();
+
   switch(currentSoundIdentifier){
     case SOUND_IDENTIFIER_NONE:
       volumeZero = true;
@@ -116,11 +119,15 @@ void playAudio(char soundIdentifier, boolean volumeTransition){
     break;
 
     case SOUND_IDENTIFIER_INTERACTION_REQUEST:
-      audio.play("icon.wav");
+      audio.play("ibeg.wav");
+    break;
+
+    case SOUND_IDENTIFIER_INTERACTION_DONE:
+      audio.play("isto.wav");
     break;
 
     case SOUND_IDENTIFIER_LOOP_MUSIC:
-      audio.play("icon.wav");
+      audio.play("lmus.wav");
     break;
 
     case SOUND_IDENTIFIER_LOOP_FOREST:
@@ -232,6 +239,23 @@ void loop()
 
   if (!audio.isPlaying()){
     playAudio(SOUND_IDENTIFIER_CONNECT);
+    delay(10000);
+    playAudio(SOUND_IDENTIFIER_INTERACTION_REQUEST);
+    delay(10000);
+    playAudio(SOUND_IDENTIFIER_INTERACTION_DONE);
+    delay(10000);
+    playAudio(SOUND_IDENTIFIER_EVENT_DRAGON);
+    delay(10000);
+    playAudio(SOUND_IDENTIFIER_EVENT_TREES);
+    delay(10000);
+    playAudio(SOUND_IDENTIFIER_EVENT_SPARKLES);
+    delay(10000);
+    playAudio(SOUND_IDENTIFIER_LOOP_FOREST);
+    delay(10000);
+    playAudio(SOUND_IDENTIFIER_LOOP_WAVE);
+    delay(20000);
+    playAudio(SOUND_IDENTIFIER_LOOP_MUSIC);
+    delay(20000);
   }
 
   if(ET.receiveData()){
