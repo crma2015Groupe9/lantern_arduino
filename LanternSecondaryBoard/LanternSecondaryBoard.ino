@@ -32,6 +32,14 @@ TimeManager time;
 #define WIRE_ACTION_STOP_SOUND 2
 #define WIRE_ACTION_CHANGE_VOLUME_UP 3
 #define WIRE_ACTION_CHANGE_VOLUME_DOWN 4
+#define WIRE_ACTION_LOOP_ON 5
+#define WIRE_ACTION_LOOP_OFF 6
+
+boolean audioLoop;
+
+void setLoop(boolean loopValue){
+  audioLoop = loopValue;
+}
 
 EasyTransferI2C ET;
 
@@ -102,7 +110,7 @@ void changeVolume(byte newVolume){
   changeVolume(newVolume, false);
 }
 
-void playAudio(char soundIdentifier, boolean volumeTransition){
+void playAudio(char soundIdentifier){
   boolean volumeZero = false;
   currentSoundIdentifier = soundIdentifier;
 
@@ -159,10 +167,6 @@ void playAudio(char soundIdentifier, boolean volumeTransition){
   if (!volumeZero){
     changeVolume(currentVolume, true);
   }
-}
-
-void playAudio(char soundIdentifier){
-  playAudio(soundIdentifier, false);
 }
 
 void playAudio(){
@@ -224,6 +228,8 @@ void setup(void)
 
   soundToRead = 1;
 
+  setLoop(false);
+
   time.init();
 }
 
@@ -237,14 +243,18 @@ void loop()
 
   updateVolume();
 
-  if (!audio.isPlaying()){
+  if(!audio.isPlaying() && audioLoop){
+    playAudio();
+  }
+
+  /*if (!audio.isPlaying()){
     playAudio(SOUND_IDENTIFIER_CONNECT);
     delay(10000);
     playAudio(SOUND_IDENTIFIER_INTERACTION_REQUEST);
     delay(10000);
     playAudio(SOUND_IDENTIFIER_INTERACTION_DONE);
     delay(10000);
-    playAudio(SOUND_IDENTIFIER_EVENT_DRAGON);
+    playAudio(SOUND_IDENTIFIER_EVENT_DRAGON); 
     delay(10000);
     playAudio(SOUND_IDENTIFIER_EVENT_TREES);
     delay(10000);
@@ -256,7 +266,7 @@ void loop()
     delay(20000);
     playAudio(SOUND_IDENTIFIER_LOOP_MUSIC);
     delay(20000);
-  }
+  }*/
 
   if(ET.receiveData()){
     switch(wireDatas.actionIdentifier){
@@ -278,6 +288,16 @@ void loop()
       
       case WIRE_ACTION_CHANGE_VOLUME_DOWN:
         changeVolume(currentVolume-1);
+      break;
+
+      case WIRE_ACTION_LOOP_ON:
+        setLoop(true);
+        //audio.loop(1);
+      break;
+
+      case WIRE_ACTION_LOOP_OFF:
+        setLoop(false);
+        //audio.loop(0);
       break;
       
       default:

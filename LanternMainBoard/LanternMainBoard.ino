@@ -8,6 +8,15 @@
 #include <TimeManager.h>
 #include <Colors.h>
 
+#include <ByteBitList.h>
+
+ByteBitList bitList;
+#define BIT_LIST_INDEX_TRANSITION_TO_NIGHT_STARTED 0
+#define BIT_LIST_INDEX_AMBIANT_IS_TRANSITIONNING 1
+#define BIT_LIST_INDEX_BLUETOOTH_PREVIOUS_LOOP_CONNECTED 2
+#define BIT_LIST_INDEX_FIRST_LOOP 3
+#define BIT_LIST_INDEX_LANTERN_READY 4
+
 TimeManager time;
 
 #define TIME_BEFORE_LANTERN_IS_READY 5000
@@ -35,7 +44,13 @@ TimeManager time;
 
 char currentStoryCode, previousLoopStoryCode, previousStoryCode, currentPage, previousPage, previousLoopPage;
 unsigned long transitionToNightDuration;
-boolean transitionToNightStarted;
+boolean transitionToNightStarted(){
+  bitList.getValue(BIT_LIST_INDEX_TRANSITION_TO_NIGHT_STARTED);
+}
+
+void transitionToNightStarted(boolean value){
+  bitList.setValue(BIT_LIST_INDEX_TRANSITION_TO_NIGHT_STARTED, value);
+}
 
 void setPage(char newPage){
   previousPage = currentPage;
@@ -76,6 +91,8 @@ void setLanternMode(char newLanternMode){
 #define WIRE_ACTION_STOP_SOUND 2
 #define WIRE_ACTION_CHANGE_VOLUME_UP 3
 #define WIRE_ACTION_CHANGE_VOLUME_DOWN 4
+#define WIRE_ACTION_LOOP_ON 5
+#define WIRE_ACTION_LOOP_OFF 6
 
 EasyTransferI2C ET;
 
@@ -89,12 +106,18 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
   ET.sendData(SECONDARY_BOARD_ADDRESS);
 }
 
-void playSound(char soundFileIdentifier){
+void playSound(char soundFileIdentifier, boolean loop){
+  launchActionOnSecondaryBoard(loop ? WIRE_ACTION_LOOP_ON : WIRE_ACTION_LOOP_OFF);
   wireDatas.soundFileIdentifier = soundFileIdentifier;
   launchActionOnSecondaryBoard(WIRE_ACTION_PLAY_SOUND);
 }
 
+void playSound(char soundFileIdentifier){
+  playSound(soundFileIdentifier, false);
+}
+
 void stopSound(){
+  launchActionOnSecondaryBoard(WIRE_ACTION_LOOP_OFF);
   launchActionOnSecondaryBoard(WIRE_ACTION_STOP_SOUND);
 }
 
@@ -505,27 +528,34 @@ void playLightAnimationIfPossible(char lightAnimationCode){
 }
 
 //Animations d'ambiance
-boolean ambiantIsTransitionning;
+boolean ambiantIsTransitionning(){
+  return bitList.getValue(BIT_LIST_INDEX_AMBIANT_IS_TRANSITIONNING);
+}
+
+void ambiantIsTransitionning(boolean value){
+  bitList.setValue(BIT_LIST_INDEX_AMBIANT_IS_TRANSITIONNING, value);
+}
+
 Tween ambiantTransitionTween, lightBreathTween;
 
 Colors ledsOriginColor[NUMBER_OF_LEDS];
 Colors ledsTargetColor[NUMBER_OF_LEDS];
 
 void launchAmbiantTransition(unsigned long transitionDuration){
-  ambiantIsTransitionning = true;
+  ambiantIsTransitionning(true);
   ambiantTransitionTween.transition(0, 100, transitionDuration);  
 }
 
 void updateAmbiantTransition(){
   if(ambiantTransitionTween.isEnded()){
-      ambiantIsTransitionning = false;
+      ambiantIsTransitionning(false);
   }
 
   ambiantTransitionTween.update(time.delta());
 }
 
 void updateLightBreath(){
-  if(!ambiantIsTransitionning){
+  if(!ambiantIsTransitionning()){
     lightBreathTween.update(time.delta());
   }
 }
@@ -552,7 +582,7 @@ void ambiantTransition(Colors *newLedsTargetColors){
 void applyAmbiantColor(boolean breathing, boolean justTheMiddle){
   byte i;
 
-  if(ambiantIsTransitionning){
+  if(ambiantIsTransitionning()){
     for(i=0;i<NUMBER_OF_LEDS;i++){
       Colors ledColor = ledsOriginColor[i].getGradientStep(ambiantTransitionTween.easeInOutQuadCursor(), ledsTargetColor[i]);
       rgb(i, ledColor.red(), ledColor.green(), ledColor.blue());
@@ -617,6 +647,7 @@ unsigned int timeWithoutConnection;
 
 Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
 
+#define BLE_INSTRUCTION_APPLICATION_LAUNCH 'l'
 #define BLE_INSTRUCTION_SET_MODE 'm'
 #define BLE_INSTRUCTION_SET_STORY 's'
 #define BLE_INSTRUCTION_SET_STORY_PAGE 'p'
@@ -632,6 +663,14 @@ Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
 #define BLE_PARAM_MODE_TUTO_END 'e'
 #define BLE_PARAM_MODE_LEDS_TEST 'd'
 #define BLE_PARAM_MODE_PRE_TRANSITION 'r'*/
+
+boolean bluetoothPreviousLoopConnected(){
+  return bitList.getValue(BIT_LIST_INDEX_BLUETOOTH_PREVIOUS_LOOP_CONNECTED);
+}
+
+void bluetoothPreviousLoopConnected(boolean value){
+  bitList.setValue(BIT_LIST_INDEX_BLUETOOTH_PREVIOUS_LOOP_CONNECTED, value);
+}
 
 boolean bluetoothIsConnected(){
   return bluetooth.getState() == ACI_EVT_CONNECTED;
@@ -653,12 +692,19 @@ void rxCallback(uint8_t *buffer, uint8_t len)
 {
   char bleInstruction = (char)buffer[0];
   char bleParamOne = '0';
+  char bleParamTwo = '0';
 
   if(len > 1){
     bleParamOne = (char)buffer[1];
   }
+  if(len > 2){
+    bleParamTwo = (char)buffer[2];
+  }
 
-  if(bleInstruction == BLE_INSTRUCTION_SET_MODE){
+  if(bleInstruction == BLE_INSTRUCTION_APPLICATION_LAUNCH){
+      launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
+  }
+  else if(bleInstruction == BLE_INSTRUCTION_SET_MODE){
       setLanternMode(bleParamOne);
 
       manageLanternMode((currentLanternMode != previousLanternMode), false, false);
@@ -696,7 +742,7 @@ void rxCallback(uint8_t *buffer, uint8_t len)
     playLightAnimationIfPossible(bleParamOne);
   }
   else if(bleInstruction == BLE_INSTRUCTION_PLAY_SOUND){
-    playSound(bleParamOne);
+    playSound(bleParamOne, (bleParamTwo != '0'));
   }
 }
 
@@ -805,7 +851,21 @@ void orangeLed(){
   analogWrite(GREEN_STATE_LED_PIN, stateLedOn ? stateLedIntensity/8 : 0);*/
 }
 
-boolean firstLoop, lanternReady;
+boolean firstLoop(){
+  return bitList.getValue(BIT_LIST_INDEX_FIRST_LOOP);
+}
+
+void firstLoop(boolean value){
+  bitList.setValue(BIT_LIST_INDEX_FIRST_LOOP, value);
+}
+
+boolean lanternReady(){
+  return bitList.getValue(BIT_LIST_INDEX_LANTERN_READY);
+}
+
+void lanternReady(boolean value){
+  bitList.setValue(BIT_LIST_INDEX_LANTERN_READY, value);
+}
 
 /*==============================*/
 /*==============================*/
@@ -830,16 +890,18 @@ void setup(void)
   pinMode(CLOSED_PIN, INPUT);
   pinMode(INFRARED_SENSOR_PIN, INPUT);
 
-  firstLoop = true;
-  lanternReady = false;
+  firstLoop(true);
+  lanternReady(false);
 
   //pinMode(STATE_LED_ON_OFF_PIN, INPUT);
   
-  firstLoop = true;
-  lanternReady = false;
+  /*firstLoop = true;
+  lanternReady = false;*/
   /*stateLedOn = true;
   previousSwitchStateLed = LOW;*/
   
+  bluetoothPreviousLoopConnected(false);
+
   previousLanternMode = LANTERN_MODE_INIT;
   currentLanternMode = LANTERN_MODE_INIT;
   previousLoopLanternMode = LANTERN_MODE_INIT;
@@ -852,7 +914,7 @@ void setup(void)
   stateLedBreathTween.loopWithDelay();
   stateLedBreathTween.reverseLoop();*/
   
-  ambiantIsTransitionning = false;
+  ambiantIsTransitionning(false);
 
   setStory(STORY_NO_STORY);
 
@@ -863,7 +925,7 @@ void setup(void)
   previousPage = '0';
 
   transitionToNightDuration = DURATION_1_MIN;
-  transitionToNightStarted = false;
+  transitionToNightStarted(false);
 
   lightAnimationTween.transition(0,0,0);
   currentLightAnimation = LIGHT_ANIMATION_NONE;
@@ -874,9 +936,14 @@ void setup(void)
 void loop()
 {
   boolean modeChanged, storyChanged, pageChanged;
-    
+  
+  /*if(!bluetoothPreviousLoopConnected() && bluetoothIsConnected()){
+    Serial.println(F("connexion"));
+    launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
+  }*/
+
   if(!bluetoothIsConnected() && (currentLanternMode == LANTERN_MODE_TUTO_BEGIN || currentLanternMode == LANTERN_MODE_TUTO_END)){
-      setLanternMode(LANTERN_MODE_NIGHT);
+    setLanternMode(LANTERN_MODE_NIGHT);
   }
 
   modeChanged = false;
@@ -893,26 +960,26 @@ void loop()
   updateLightBreath();
   
   //On attend un peu pour etre sur que la secondary board est prete à recevoir des données
-  if(!lanternReady){
+  if(!lanternReady()){
     redLed();
     
     if(time.total() > TIME_BEFORE_LANTERN_IS_READY){
-      lanternReady = true;
+      lanternReady(true);
     }
   }
   
-  if(firstLoop){
-    if(lanternReady){
+  if(firstLoop()){
+    if(lanternReady()){
       bluetooth.begin();
       
-      launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
+      //launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
       setLanternMode(LANTERN_MODE_NIGHT);
 
-      firstLoop = false;
+      firstLoop(false);
     }
   }
   
-  if(lanternReady){
+  if(lanternReady()){
     modeChanged = currentLanternMode != previousLoopLanternMode;
     
     manageLanternMode(modeChanged, storyChanged, pageChanged);
@@ -935,6 +1002,8 @@ void loop()
       setStory(STORY_NO_STORY);
   }
   
+  bluetoothPreviousLoopConnected(bluetoothIsConnected());
+
   time.loopEnd();
 }
 
@@ -975,7 +1044,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
   }
 
   if(currentLanternMode != LANTERN_MODE_TRANSITION && currentLanternMode != LANTERN_MODE_NIGHT){
-      transitionToNightStarted = false;
+      transitionToNightStarted(false);
   }
 
   //On definit les events pour chaque mode
@@ -1126,7 +1195,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
       orangeLed();
 
       if(modeChanged){
-        transitionToNightStarted = true;
+        transitionToNightStarted(true);
 
         for(i=0;i<NUMBER_OF_LEDS;i++){
           newLedsTargetColors[i] = COLOR_TRANSITION_ORANGE;
@@ -1140,7 +1209,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
 
         //Si la transition pour arriver au mode transition est finie, on lance la transition vers le mode nuit
         if(ambiantTransitionTween.isEnded()){
-          if(transitionToNightStarted){
+          if(transitionToNightStarted()){
               newLedsTargetColors[0] = COLOR_NIGHT_ORANGE;
 
               for(i=1;i<NUMBER_OF_LEDS;i++){
@@ -1148,7 +1217,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
               }
               ambiantTransition(newLedsTargetColors, transitionToNightDuration);
 
-              transitionToNightStarted = false;
+              transitionToNightStarted(false);
           }
           else{
             setLanternMode(LANTERN_MODE_NIGHT);
