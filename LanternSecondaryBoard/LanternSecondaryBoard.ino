@@ -20,6 +20,10 @@
 
 TimeManager time;
 
+unsigned long minuteDuration(byte numberOfMinutes){
+  return (unsigned long)numberOfMinutes * 60000;
+}
+
 /*==================================================*/
 /*=========Communication avec la main board=========*/
 /*==================================================*/
@@ -34,6 +38,8 @@ TimeManager time;
 #define WIRE_ACTION_CHANGE_VOLUME_DOWN 4
 #define WIRE_ACTION_LOOP_ON 5
 #define WIRE_ACTION_LOOP_OFF 6
+#define WIRE_ACTION_START_TRANSITION 7
+#define WIRE_ACTION_REACTIVATE_TRANSITION 8
 
 boolean audioLoop;
 
@@ -46,6 +52,7 @@ EasyTransferI2C ET;
 struct WireDatas {
     byte actionIdentifier;
     char soundFileIdentifier;
+    byte minuteTransitionDuration;
 } wireDatas;
 
 void receive(int numBytes) {}
@@ -78,14 +85,11 @@ Tween volumeTransitionTween;
 byte currentVolume;
 boolean transitionningInProgress;
 char currentSoundIdentifier;
-boolean soundOff;
 
 void stopAudio(){
   audio.setVolume(0);
   audio.volume(0);
   audio.stopPlayback();
-
-  soundOff = true;
 }
 
 void changeVolume(byte newVolume, boolean force){
@@ -99,7 +103,6 @@ void changeVolume(byte newVolume, boolean force){
       stopAudio();
     }
     else{
-      soundOff = false;
       audio.volume(1);
       audio.setVolume(currentVolume-1);
     }
@@ -173,9 +176,9 @@ void playAudio(){
   playAudio(currentSoundIdentifier);
 }
 
-void volumeTransitionTo(byte newVolume){
-  volumeTransitionTween.transition(currentVolume, newVolume, 8000);
-  transitionningInProgress = true;
+volumeTransitionTo(byte newVolume, unsigned long transitionDuration){
+  void volumeTransitionTween.transition(currentVolume, newVolume, (unsigned int)transitionDuration);
+  transitionningInProgress = true; 
 }
 
 void updateVolume(){
@@ -194,7 +197,6 @@ void updateVolume(){
 /*---------------*/
 
 boolean firstLoop;
-byte soundToRead;
 
 void setup(void)
 { 
@@ -223,10 +225,6 @@ void setup(void)
 
   firstLoop = true;
   transitionningInProgress = false;
-
-  soundOff = false;
-
-  soundToRead = 1;
 
   setLoop(false);
 
@@ -279,7 +277,8 @@ void loop()
       break;
 
       case WIRE_ACTION_STOP_SOUND:
-        volumeTransitionTo(MIN_VOLUME);
+        stopAudio();
+        //volumeTransitionTo(MIN_VOLUME);
       break;
 
       case WIRE_ACTION_CHANGE_VOLUME_UP:
@@ -298,6 +297,16 @@ void loop()
       case WIRE_ACTION_LOOP_OFF:
         setLoop(false);
         //audio.loop(0);
+      break;
+
+      case WIRE_ACTION_START_TRANSITION:
+        volumeTransitionTo(MIN_VOLUME, minuteDuration(wireDatas.minuteTransitionDuration))
+      break;
+
+      case #define WIRE_ACTION_REACTIVATE_TRANSITION:
+        changeVolume(MAX_VOLUME);
+        setLoop(true);
+        playAudio();
       break;
       
       default:

@@ -21,7 +21,11 @@ TimeManager time;
 
 #define TIME_BEFORE_LANTERN_IS_READY 5000
 
-#define DURATION_1_MIN 60000
+unsigned long minuteDuration(byte numberOfMinutes){
+  return (unsigned long)numberOfMinutes * 60000;
+}
+
+//#define DURATION_1_MIN 60000
 /*#define DURATION_2_MIN 120000
 #define DURATION_3_MIN 180000
 #define DURATION_4_MIN 240000
@@ -43,7 +47,7 @@ TimeManager time;
 #define STORY_BOUCLE_OR 'o'
 
 char currentStoryCode, previousLoopStoryCode, previousStoryCode, currentPage, previousPage, previousLoopPage;
-unsigned long transitionToNightDuration;
+//unsigned long transitionToNightDuration;
 boolean transitionToNightStarted(){
   bitList.getValue(BIT_LIST_INDEX_TRANSITION_TO_NIGHT_STARTED);
 }
@@ -93,12 +97,15 @@ void setLanternMode(char newLanternMode){
 #define WIRE_ACTION_CHANGE_VOLUME_DOWN 4
 #define WIRE_ACTION_LOOP_ON 5
 #define WIRE_ACTION_LOOP_OFF 6
+#define WIRE_ACTION_START_TRANSITION 7
+#define WIRE_ACTION_REACTIVATE_TRANSITION 8
 
 EasyTransferI2C ET;
 
 struct WireDatas {
     byte actionIdentifier;
     char soundFileIdentifier;
+    byte minuteTransitionDuration;
 } wireDatas;
 
 void launchActionOnSecondaryBoard(byte actionIdentifier){
@@ -543,7 +550,7 @@ Colors ledsTargetColor[NUMBER_OF_LEDS];
 
 void launchAmbiantTransition(unsigned long transitionDuration){
   ambiantIsTransitionning(true);
-  ambiantTransitionTween.transition(0, 100, transitionDuration);  
+  ambiantTransitionTween.transition(0, 100, (unsigned int)transitionDuration);
 }
 
 void updateAmbiantTransition(){
@@ -721,6 +728,9 @@ void rxCallback(uint8_t *buffer, uint8_t len)
   }
   else if(bleInstruction == BLE_INSTRUCTION_SET_TRANSITION_TIME){
     switch (bleParamOne) {
+        //byte numberOfMinutes = (byte)bleParamOne;
+        wireDatas.minuteTransitionDuration = (byte)bleParamOne;
+        //transitionToNightDuration = minuteDuration((unsigned int)numberOfMinutes);
         //case '1':transitionToNightDuration = DURATION_1_MIN;break;
         /*case '2':transitionToNightDuration = DURATION_2_MIN;break;
         case '3':transitionToNightDuration = DURATION_3_MIN;break;
@@ -769,9 +779,6 @@ boolean lanternIsOpen(){
 #define INFRARED_SENSOR_PIN A4
 
 boolean childReactiveLanternTransition(){
-  if(time.total() >= (TIME_BEFORE_LANTERN_IS_READY + 2000)){
-      return false;
-  }
   return false;
   return digitalRead(INFRARED_SENSOR_PIN);
 }
@@ -924,7 +931,8 @@ void setup(void)
   currentPage = '0';
   previousPage = '0';
 
-  transitionToNightDuration = DURATION_1_MIN;
+  wireDatas.minuteTransitionDuration = 1;
+  //transitionToNightDuration = minuteDuration(1);
   transitionToNightStarted(false);
 
   lightAnimationTween.transition(0,0,0);
@@ -1215,7 +1223,8 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
               for(i=1;i<NUMBER_OF_LEDS;i++){
                 newLedsTargetColors[i] = COLOR_BLACK;
               }
-              ambiantTransition(newLedsTargetColors, transitionToNightDuration);
+              ambiantTransition(newLedsTargetColors, minuteDuration((unsigned int)wireDatas.minuteTransitionDuration));
+              launchActionOnSecondaryBoard(WIRE_ACTION_START_TRANSITION);
 
               transitionToNightStarted(false);
           }
@@ -1246,6 +1255,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
 
       if(childReactiveLanternTransition()){
         setLanternMode(LANTERN_MODE_TRANSITION);
+        launchActionOnSecondaryBoard(WIRE_ACTION_REACTIVATE_TRANSITION);
         nextTurnNeedAModeChanged = true;
       }
 
