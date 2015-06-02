@@ -87,6 +87,7 @@ boolean transitionningInProgress;
 char currentSoundIdentifier;
 
 void stopAudio(){
+  setLoop(false);
   audio.setVolume(0);
   audio.volume(0);
   audio.stopPlayback();
@@ -176,21 +177,39 @@ void playAudio(){
   playAudio(currentSoundIdentifier);
 }
 
-volumeTransitionTo(byte newVolume, unsigned long transitionDuration){
-  void volumeTransitionTween.transition(currentVolume, newVolume, (unsigned int)transitionDuration);
+void volumeTransitionTo(byte newVolume, unsigned long transitionDuration){
+  volumeTransitionTween.transition(currentVolume, newVolume, (unsigned int)transitionDuration);
   transitionningInProgress = true; 
 }
+
+byte transitionNumberOfMinutesPast;
 
 void updateVolume(){
   if(transitionningInProgress){
     volumeTransitionTween.update(time.delta());
-    
-    changeVolume((byte)volumeTransitionTween.linearValue());
+
+    changeVolume(
+      (byte)(
+        volumeTransitionTween.startValue() +
+        (
+          (volumeTransitionTween.endValue()-volumeTransitionTween.startValue())*
+          ((float)((float)transitionNumberOfMinutesPast+volumeTransitionTween.linearCursor())/(float)wireDatas.minuteTransitionDuration)
+        )
+      )
+    );
   }
 
   if (volumeTransitionTween.isEnded())
   {
-    transitionningInProgress = false;
+    transitionNumberOfMinutesPast++;
+
+    if(transitionNumberOfMinutesPast >= wireDatas.minuteTransitionDuration){
+      transitionningInProgress = false;
+      transitionNumberOfMinutesPast = 0;
+    }
+    else{
+      volumeTransitionTween.replay();
+    }
   }
 }
 
@@ -228,6 +247,8 @@ void setup(void)
 
   setLoop(false);
 
+  transitionNumberOfMinutesPast = 0;
+
   time.init();
 }
 
@@ -245,34 +266,15 @@ void loop()
     playAudio();
   }
 
-  /*if (!audio.isPlaying()){
-    playAudio(SOUND_IDENTIFIER_CONNECT);
-    delay(10000);
-    playAudio(SOUND_IDENTIFIER_INTERACTION_REQUEST);
-    delay(10000);
-    playAudio(SOUND_IDENTIFIER_INTERACTION_DONE);
-    delay(10000);
-    playAudio(SOUND_IDENTIFIER_EVENT_DRAGON); 
-    delay(10000);
-    playAudio(SOUND_IDENTIFIER_EVENT_TREES);
-    delay(10000);
-    playAudio(SOUND_IDENTIFIER_EVENT_SPARKLES);
-    delay(10000);
-    playAudio(SOUND_IDENTIFIER_LOOP_FOREST);
-    delay(10000);
-    playAudio(SOUND_IDENTIFIER_LOOP_WAVE);
-    delay(20000);
-    playAudio(SOUND_IDENTIFIER_LOOP_MUSIC);
-    delay(20000);
-  }*/
-
   if(ET.receiveData()){
     switch(wireDatas.actionIdentifier){
       case WIRE_ACTION_START_LANTERN:
+        changeVolume(MAX_VOLUME);
         playAudio(SOUND_IDENTIFIER_CONNECT);
       break;
 
       case WIRE_ACTION_PLAY_SOUND:
+        changeVolume(MAX_VOLUME);
         playAudio(wireDatas.soundFileIdentifier);
       break;
 
@@ -300,13 +302,17 @@ void loop()
       break;
 
       case WIRE_ACTION_START_TRANSITION:
-        volumeTransitionTo(MIN_VOLUME, minuteDuration(wireDatas.minuteTransitionDuration))
+        changeVolume(MAX_VOLUME);
+        transitionNumberOfMinutesPast = 0;
+        volumeTransitionTo(MIN_VOLUME, minuteDuration(1));
       break;
 
-      case #define WIRE_ACTION_REACTIVATE_TRANSITION:
+      case WIRE_ACTION_REACTIVATE_TRANSITION:
         changeVolume(MAX_VOLUME);
         setLoop(true);
         playAudio();
+        transitionNumberOfMinutesPast = 0;
+        volumeTransitionTo(MIN_VOLUME, minuteDuration(1));
       break;
       
       default:
