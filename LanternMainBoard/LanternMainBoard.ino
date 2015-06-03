@@ -661,6 +661,7 @@ Adafruit_BLE_UART bluetooth = Adafruit_BLE_UART(REQ_PIN, RDY_PIN, RST_PIN);
 #define BLE_INSTRUCTION_SET_TRANSITION_TIME 't'
 #define BLE_INSTRUCTION_PLAY_ANIMATION 'a'
 #define BLE_INSTRUCTION_PLAY_SOUND 'n'
+#define BLE_INSTRUCTION_GET_CURRENT_LANTERN_MODE 'g'
 
 boolean bluetoothPreviousLoopConnected(){
   return bitList.getValue(BIT_LIST_INDEX_BLUETOOTH_PREVIOUS_LOOP_CONNECTED);
@@ -725,6 +726,9 @@ void rxCallback(uint8_t *buffer, uint8_t len)
   }
   else if(bleInstruction == BLE_INSTRUCTION_PLAY_SOUND){
     playSound(bleParamOne, (bleParamTwo != '0'));
+  }
+  else if(bleInstruction == BLE_INSTRUCTION_GET_CURRENT_LANTERN_MODE){
+    sendMessage(&currentLanternMode, 1);
   }
 }
 

@@ -63,7 +63,7 @@ void receive(int numBytes) {}
 
 #define SPEAKER_PIN 9
 #define SD_CARD_PIN 10
-#define MAX_VOLUME 5
+#define MAX_VOLUME 6
 #define MIN_VOLUME 0
 
 #define SOUND_IDENTIFIER_NONE 'n'
@@ -93,24 +93,40 @@ void stopAudio(){
   audio.stopPlayback();
 }
 
-void changeVolume(byte newVolume, boolean force){
+void changeVolume(byte newVolume, boolean force, boolean fromVolumeTransition){
+  if(transitionningInProgress && newVolume > currentVolume){
+      newVolume = currentVolume;
+  }
+
   if(currentVolume != newVolume || force){
     currentVolume = newVolume;
     currentVolume = currentVolume < MIN_VOLUME ? MIN_VOLUME : currentVolume;
     currentVolume = currentVolume > MAX_VOLUME ? MAX_VOLUME : currentVolume;
     
-    if (currentVolume <= 0)
+    if (currentVolume <= 0 && fromVolumeTransition)
     {
       stopAudio();
     }
     else{
-      audio.volume(1);
-      audio.setVolume(currentVolume-1);
+      audio.volume(currentVolume <= 0 ? 0 : 1);
+      audio.setVolume(currentVolume <= 0 ? 0 : currentVolume-1);
     }
   }
 }
 
+void changeVolume(byte newVolume, byte force){
+  changeVolume(newVolume, force, false);
+}
+
 void changeVolume(byte newVolume){
+  changeVolume(newVolume, false);
+}
+
+void changeVolumeFromVolumeTransition(byte newVolume, boolean force){
+  changeVolume(newVolume, force, true);
+}
+
+void changeVolumeFromVolumeTransition(byte newVolume){
   changeVolume(newVolume, false);
 }
 
@@ -188,7 +204,7 @@ void updateVolume(){
   if(transitionningInProgress){
     volumeTransitionTween.update(time.delta());
 
-    changeVolume(
+    changeVolumeFromVolumeTransition(
       (byte)(
         volumeTransitionTween.startValue() +
         (
@@ -274,7 +290,6 @@ void loop()
       break;
 
       case WIRE_ACTION_PLAY_SOUND:
-        changeVolume(MAX_VOLUME);
         playAudio(wireDatas.soundFileIdentifier);
       break;
 
@@ -302,7 +317,6 @@ void loop()
       break;
 
       case WIRE_ACTION_START_TRANSITION:
-        changeVolume(MAX_VOLUME);
         transitionNumberOfMinutesPast = 0;
         volumeTransitionTo(MIN_VOLUME, minuteDuration(1));
       break;
