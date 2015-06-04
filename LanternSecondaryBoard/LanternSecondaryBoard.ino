@@ -82,63 +82,58 @@ void receive(int numBytes) {}
 
 TMRpcm audio;
 Tween volumeTransitionTween;
-byte currentVolume;
+byte currentVolume, currentVolumePotarModifier;
 boolean transitionningInProgress;
 char currentSoundIdentifier;
 
 void stopAudio(){
   setLoop(false);
-  audio.setVolume(0);
-  audio.volume(0);
   audio.stopPlayback();
+  audio.disable();
 }
 
-void changeVolume(byte newVolume, boolean force, boolean fromVolumeTransition){
-  if(transitionningInProgress && newVolume > currentVolume){
-      newVolume = currentVolume;
-  }
 
-  if(currentVolume != newVolume || force){
+void changeVolume(byte newVolume, byte newVolumePotarModifier){
+  byte finalVolume = 0;
+  if(newVolume != currentVolume || newVolumePotarModifier != currentVolumePotarModifier){
+    currentVolumePotarModifier = newVolumePotarModifier;
     currentVolume = newVolume;
-    currentVolume = currentVolume < MIN_VOLUME ? MIN_VOLUME : currentVolume;
-    currentVolume = currentVolume > MAX_VOLUME ? MAX_VOLUME : currentVolume;
-    
-    if (currentVolume <= 0 && fromVolumeTransition)
-    {
-      stopAudio();
+
+    if(currentVolumePotarModifier > MAX_VOLUME){currentVolumePotarModifier = MAX_VOLUME;}
+    if(currentVolumePotarModifier < MIN_VOLUME){currentVolumePotarModifier = MIN_VOLUME;}
+    if(currentVolume > MAX_VOLUME){currentVolume = MAX_VOLUME;}
+    if(currentVolume < MIN_VOLUME){currentVolume = MIN_VOLUME;}
+
+    finalVolume = currentVolumePotarModifier >= currentVolume ? 0 : currentVolume - currentVolumePotarModifier;
+    if(finalVolume <= MIN_VOLUME){
+      audio.setVolume(MIN_VOLUME);
+      audio.volume(0);
     }
     else{
-      audio.volume(currentVolume <= 0 ? 0 : 1);
-      audio.setVolume(currentVolume <= 0 ? 0 : currentVolume-1);
+      audio.volume(1);
+      audio.setVolume(finalVolume > MAX_VOLUME ? MAX_VOLUME : finalVolume);
     }
   }
 }
 
-void changeVolume(byte newVolume, byte force){
-  changeVolume(newVolume, force, false);
+void changeVolumeFromPotar(byte newVolumePotarModifier){
+  changeVolume(currentVolume, newVolumePotarModifier);
 }
 
-void changeVolume(byte newVolume){
-  changeVolume(newVolume, false);
-}
-
-void changeVolumeFromVolumeTransition(byte newVolume, boolean force){
-  changeVolume(newVolume, force, true);
-}
-
-void changeVolumeFromVolumeTransition(byte newVolume){
-  changeVolume(newVolume, false);
+void changeVolumeFromTransition(byte newVolume){
+  changeVolume(newVolume, currentVolumePotarModifier);
+  if(currentVolume <= MIN_VOLUME){
+      stopAudio();
+  }
 }
 
 void playAudio(char soundIdentifier){
-  boolean volumeZero = false;
   currentSoundIdentifier = soundIdentifier;
 
   audio.disable();
 
   switch(currentSoundIdentifier){
     case SOUND_IDENTIFIER_NONE:
-      volumeZero = true;
       stopAudio();
     break;
 
@@ -179,13 +174,8 @@ void playAudio(char soundIdentifier){
     break;
 
     default:
-      volumeZero = true;
       stopAudio();
     break;
-  }
-
-  if (!volumeZero){
-    changeVolume(currentVolume, true);
   }
 }
 
@@ -204,7 +194,7 @@ void updateVolume(){
   if(transitionningInProgress){
     volumeTransitionTween.update(time.delta());
 
-    changeVolumeFromVolumeTransition(
+    changeVolumeFromTransition(
       (byte)(
         volumeTransitionTween.startValue() +
         (
@@ -255,7 +245,8 @@ void setup(void)
   }
   
   currentVolume = MIN_VOLUME;
-  changeVolume(MAX_VOLUME);
+  currentVolumePotarModifier = 0;
+  changeVolume(MAX_VOLUME, 0);
   audio.quality(1);
 
   firstLoop = true;
@@ -285,7 +276,8 @@ void loop()
   if(ET.receiveData()){
     switch(wireDatas.actionIdentifier){
       case WIRE_ACTION_START_LANTERN:
-        changeVolume(MAX_VOLUME);
+        setLoop(false);
+        changeVolume(MAX_VOLUME, 0);
         playAudio(SOUND_IDENTIFIER_CONNECT);
       break;
 
@@ -299,11 +291,11 @@ void loop()
       break;
 
       case WIRE_ACTION_CHANGE_VOLUME_UP:
-        changeVolume(currentVolume+1);
+        changeVolumeFromPotar(currentVolumePotarModifier-1);
       break;
       
       case WIRE_ACTION_CHANGE_VOLUME_DOWN:
-        changeVolume(currentVolume-1);
+        changeVolumeFromPotar(currentVolumePotarModifier+1);
       break;
 
       case WIRE_ACTION_LOOP_ON:
@@ -318,11 +310,12 @@ void loop()
 
       case WIRE_ACTION_START_TRANSITION:
         transitionNumberOfMinutesPast = 0;
+        setLoop(true);
         volumeTransitionTo(MIN_VOLUME, minuteDuration(1));
       break;
 
       case WIRE_ACTION_REACTIVATE_TRANSITION:
-        changeVolume(MAX_VOLUME);
+        changeVolume(MAX_VOLUME, 0);
         setLoop(true);
         playAudio();
         transitionNumberOfMinutesPast = 0;

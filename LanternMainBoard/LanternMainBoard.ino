@@ -100,7 +100,7 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 }
 
 void playSound(char soundFileIdentifier, boolean loop){
-  launchActionOnSecondaryBoard(loop ? WIRE_ACTION_LOOP_ON : WIRE_ACTION_LOOP_OFF);
+  launchActionOnSecondaryBoard((loop ? WIRE_ACTION_LOOP_ON : WIRE_ACTION_LOOP_OFF));
   wireDatas.soundFileIdentifier = soundFileIdentifier;
   launchActionOnSecondaryBoard(WIRE_ACTION_PLAY_SOUND);
 }
@@ -725,7 +725,7 @@ void rxCallback(uint8_t *buffer, uint8_t len)
     playLightAnimationIfPossible(bleParamOne);
   }
   else if(bleInstruction == BLE_INSTRUCTION_PLAY_SOUND){
-    playSound(bleParamOne, (bleParamTwo != '0'));
+    playSound(bleParamOne, (bleParamTwo == '1'));
   }
   else if(bleInstruction == BLE_INSTRUCTION_GET_CURRENT_LANTERN_MODE){
     sendMessage(&currentLanternMode, 1);
