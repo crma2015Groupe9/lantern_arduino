@@ -102,6 +102,7 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 void playSound(char soundFileIdentifier, boolean loop){
   launchActionOnSecondaryBoard((loop ? WIRE_ACTION_LOOP_ON : WIRE_ACTION_LOOP_OFF));
   wireDatas.soundFileIdentifier = soundFileIdentifier;
+  delay(25);//Maybe to delete
   launchActionOnSecondaryBoard(WIRE_ACTION_PLAY_SOUND);
 }
 
@@ -111,6 +112,7 @@ void playSound(char soundFileIdentifier){
 
 void stopSound(){
   launchActionOnSecondaryBoard(WIRE_ACTION_LOOP_OFF);
+  delay(25);//Maybe to delete
   launchActionOnSecondaryBoard(WIRE_ACTION_STOP_SOUND);
 }
 
@@ -354,7 +356,7 @@ byte lightStepDownRightOfCenterAtDistance(byte distance){
 }
 
 void lightAnimationInit_Forest(){
-  lightAnimationTween.transition(0,LIGHT_ANIMATION_FOREST_STEP_NUMBER,800);
+  lightAnimationTween.transition(0,LIGHT_ANIMATION_FOREST_STEP_NUMBER, 1300);
 }
 
 void lightAnimationUpdate_Forest(){
@@ -398,7 +400,7 @@ void lightAnimationUpdate_Forest(){
     }
 
     //trace after circle
-    /*traceStart = currentLightPosition-1;
+    traceStart = currentLightPosition-1;
     traceEnd = currentLightPosition - LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE;
     distanceFromMain = 0;
     gradientCursor = 0.0;
@@ -449,18 +451,85 @@ void lightAnimationUpdate_Forest(){
         rgb(ledDownRight, finalColor.red(), finalColor.green(), finalColor.blue());
 
       }
-    }*/
+    }
 }
 
 /*---------*/
 /*---------*/
 
 /*Sparkles*/
+#define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING 3
+#define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS 6
+
+byte lightAnimationSparklesCurrentLedsSparkling[LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING];
+byte lightAnimationSparklesCurrentStep;
+
+void lightAnimationSparklesNextStep(boolean firstStep){
+  byte indexOfSparklingLed = 0, i;
+
+  lightAnimationSparklesCurrentStep = firstStep ? 0 : lightAnimationSparklesCurrentStep+1;
+
+  lightAnimationTween.transition(0,100,225);
+
+  if(firstStep){
+    for(i=0;i<LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING;i++){
+      lightAnimationSparklesCurrentLedsSparkling[i] = (byte)random(0, NUMBER_OF_LEDS);
+    }
+  }
+  else{
+    for(i=0;i<LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING;i++){
+      lightAnimationSparklesCurrentLedsSparkling[i] = (i == 0) ? (byte)random(0, NUMBER_OF_LEDS) : (byte)lightAnimationSparklesCurrentLedsSparkling[i-1];
+    }
+  }
+}
+
+void lightAnimationSparklesNextStep(){
+  lightAnimationSparklesNextStep(/*first step*/false);
+}
+
 void lightAnimationInit_Sparkles(){
-  lightAnimationTween.transition(0,0,0);
+  lightAnimationSparklesNextStep(/*first step*/true);
 }
 
 void lightAnimationUpdate_Sparkles(){
+  byte imax, i, currentLedIndex;
+  float gradientCursor;
+
+  Colors
+    backgroundColor = COLOR_BLACK,
+    finalColor = COLOR_BLACK;
+
+  imax = lightAnimationSparklesCurrentStep+1;
+  imax = imax > LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING ? LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING : imax;
+
+  for(i=0;i<imax;i++){
+    currentLedIndex = lightAnimationSparklesCurrentLedsSparkling[i];
+    backgroundColor = currentColorOfLedAtIndex(currentLedIndex);
+
+    gradientCursor = 0.0;
+
+    if(i==0){
+        gradientCursor = 0.6*lightAnimationTween.easeOutQuadCursor();
+    }
+    else if(i==1){
+        if(lightAnimationTween.linearValue() <= 50){
+          gradientCursor = 0.6+(0.4*lightAnimationTween.easeOutQuartCursor());
+        }
+        else{
+          gradientCursor = 1.0-(0.4*lightAnimationTween.easeInQuartCursor());
+        }
+    }
+    else if(i==2){
+        gradientCursor = 0.6-(0.6*lightAnimationTween.easeOutQuartCursor());
+    }
+
+    finalColor = backgroundColor.getGradientStep(gradientCursor, COLOR_WHITE);
+    rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+  }
+
+  if(lightAnimationTween.isEnded() && lightAnimationSparklesCurrentStep <= LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS){
+    lightAnimationSparklesNextStep();
+  }
 }
 
 /*---------*/
@@ -470,15 +539,21 @@ void lightAnimationUpdate_Sparkles(){
 void applyLightAnimation(){
   switch (currentLightAnimation) {
       case LIGHT_ANIMATION_DRAGON:
-        lightAnimationUpdate_Dragon();
+        if(!lightAnimationTween.isEnded()){
+          lightAnimationUpdate_Dragon();
+        }
       break;
 
       case LIGHT_ANIMATION_FOREST:
-        lightAnimationUpdate_Forest();
+        if(!lightAnimationTween.isEnded()){
+          lightAnimationUpdate_Forest();
+        }
       break;
 
       case LIGHT_ANIMATION_SPARKLES:
-        lightAnimationUpdate_Sparkles();
+        if(!lightAnimationTween.isEnded() || lightAnimationSparklesCurrentStep <= LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS){
+          lightAnimationUpdate_Sparkles();
+        }
       break;
 
       default:
@@ -915,6 +990,8 @@ void setup(void)
 
   transitionNumberOfMinutesPast = 0;
 
+  randomSeed(analogRead(0));
+
   time.init();
 }
 
@@ -1154,9 +1231,8 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
         applyAmbiantColor(/*breathing*/true);
       }
 
-      if(!lightAnimationTween.isEnded()){
-        applyLightAnimation();
-      }
+      
+      applyLightAnimation();
     break;
     //END STORY MODE
 

@@ -24,6 +24,9 @@ unsigned long minuteDuration(byte numberOfMinutes){
   return (unsigned long)numberOfMinutes * 60000;
 }
 
+#define MIN_DURATION_BETWEEN_TWO_PLAY_LOOP 2000
+unsigned int timeSinceLastPlayLoop;
+boolean soundLoopWaitingToBePlayed;
 /*==================================================*/
 /*=========Communication avec la main board=========*/
 /*==================================================*/
@@ -104,7 +107,7 @@ void changeVolume(byte newVolume, byte newVolumePotarModifier){
     if(currentVolume > MAX_VOLUME){currentVolume = MAX_VOLUME;}
     if(currentVolume < MIN_VOLUME){currentVolume = MIN_VOLUME;}
 
-    finalVolume = currentVolumePotarModifier >= currentVolume ? 0 : currentVolume - currentVolumePotarModifier;
+    finalVolume = currentVolumePotarModifier >= currentVolume ? MIN_VOLUME : currentVolume - currentVolumePotarModifier;
     if(finalVolume <= MIN_VOLUME){
       audio.setVolume(MIN_VOLUME);
       audio.volume(0);
@@ -130,52 +133,62 @@ void changeVolumeFromTransition(byte newVolume){
 void playAudio(char soundIdentifier){
   currentSoundIdentifier = soundIdentifier;
 
+  audio.stopPlayback();
   audio.disable();
 
-  switch(currentSoundIdentifier){
-    case SOUND_IDENTIFIER_NONE:
-      stopAudio();
-    break;
+  if(timeSinceLastPlayLoop >= MIN_DURATION_BETWEEN_TWO_PLAY_LOOP){
+      switch(currentSoundIdentifier){
+        case SOUND_IDENTIFIER_NONE:
+          stopAudio();
+        break;
 
-    case SOUND_IDENTIFIER_CONNECT:
-      audio.play("icon.wav");
-    break;
+        case SOUND_IDENTIFIER_CONNECT:
+          audio.play("icon.wav");
+        break;
 
-    case SOUND_IDENTIFIER_INTERACTION_REQUEST:
-      audio.play("ibeg.wav");
-    break;
+        case SOUND_IDENTIFIER_INTERACTION_REQUEST:
+          audio.play("ibeg.wav");
+        break;
 
-    case SOUND_IDENTIFIER_INTERACTION_DONE:
-      audio.play("isto.wav");
-    break;
+        case SOUND_IDENTIFIER_INTERACTION_DONE:
+          audio.play("isto.wav");
+        break;
 
-    case SOUND_IDENTIFIER_LOOP_MUSIC:
-      audio.play("lmus.wav");
-    break;
+        case SOUND_IDENTIFIER_LOOP_MUSIC:
+          audio.play("lmus.wav");
+        break;
 
-    case SOUND_IDENTIFIER_LOOP_FOREST:
-      audio.play("lfor.wav");
-    break;
+        case SOUND_IDENTIFIER_LOOP_FOREST:
+          audio.play("lfor.wav");
+        break;
 
-    case SOUND_IDENTIFIER_LOOP_WAVE:
-      audio.play("lmer.wav");
-    break;
+        case SOUND_IDENTIFIER_LOOP_WAVE:
+          audio.play("lmer.wav");
+        break;
 
-    case SOUND_IDENTIFIER_EVENT_TREES:
-      audio.play("efor.wav");
-    break;
+        case SOUND_IDENTIFIER_EVENT_TREES:
+          audio.play("efor.wav");
+        break;
 
-    case SOUND_IDENTIFIER_EVENT_DRAGON:
-      audio.play("edra.wav");
-    break;
+        case SOUND_IDENTIFIER_EVENT_DRAGON:
+          audio.play("edra.wav");
+        break;
 
-    case SOUND_IDENTIFIER_EVENT_SPARKLES:
-      audio.play("efee.wav");
-    break;
+        case SOUND_IDENTIFIER_EVENT_SPARKLES:
+          audio.play("efee.wav");
+        break;
 
-    default:
-      stopAudio();
-    break;
+        default:
+          stopAudio();
+        break;
+      }
+
+      if(audioLoop){
+          timeSinceLastPlayLoop = 0;
+      }
+  }
+  else{
+    soundLoopWaitingToBePlayed = true;
   }
 }
 
@@ -240,7 +253,7 @@ void setup(void)
   
   audio.speakerPin = SPEAKER_PIN;
   if(!SD.begin(SD_CARD_PIN)){
-    Serial.println("error SD");
+    //Serial.println("error SD");
     return;
   }
   
@@ -256,6 +269,9 @@ void setup(void)
 
   transitionNumberOfMinutesPast = 0;
 
+  timeSinceLastPlayLoop = MIN_DURATION_BETWEEN_TWO_PLAY_LOOP;
+  soundLoopWaitingToBePlayed = false;
+
   time.init();
 }
 
@@ -268,6 +284,16 @@ void loop()
   }
 
   updateVolume();
+
+  timeSinceLastPlayLoop += time.delta();
+  if(timeSinceLastPlayLoop >= MIN_DURATION_BETWEEN_TWO_PLAY_LOOP){
+    timeSinceLastPlayLoop = MIN_DURATION_BETWEEN_TWO_PLAY_LOOP;
+
+    if(soundLoopWaitingToBePlayed){
+        soundLoopWaitingToBePlayed = false;
+        playAudio(wireDatas.soundFileIdentifier);
+    }
+  }
 
   if(!audio.isPlaying() && audioLoop){
     playAudio();
@@ -291,11 +317,11 @@ void loop()
       break;
 
       case WIRE_ACTION_CHANGE_VOLUME_UP:
-        changeVolumeFromPotar(currentVolumePotarModifier-1);
+        changeVolumeFromPotar(currentVolumePotarModifier <= MIN_VOLUME ? currentVolumePotarModifier : currentVolumePotarModifier-1);
       break;
       
       case WIRE_ACTION_CHANGE_VOLUME_DOWN:
-        changeVolumeFromPotar(currentVolumePotarModifier+1);
+        changeVolumeFromPotar(currentVolumePotarModifier >= MAX_VOLUME ? currentVolumePotarModifier : currentVolumePotarModifier+1);
       break;
 
       case WIRE_ACTION_LOOP_ON:
