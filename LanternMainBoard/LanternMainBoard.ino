@@ -126,23 +126,25 @@ void stopSound(){
 
 #define COLOR_PRE_TRANSITION_ORANGE Colors(255, 112, 0)
 #define COLOR_TRANSITION_ORANGE Colors(225, 85, 0)
-#define COLOR_NIGHT_ORANGE Colors(152, 38, 0)
+#define COLOR_NIGHT_ORANGE Colors(108, 18, 0)
 
 #define COLOR_PREVIEW_DRAGON_ENOSHIMA Colors(0, 50, 155)
 #define COLOR_PREVIEW_BOUCLE_OR Colors(245, 195, 10)
 
-#define COLOR_DRAGON_RED Colors(235,0,0)
+#define COLOR_DRAGON_RED Colors(235,12,0)
 
-#define COLOR_FOREST_GREEN Colors(0,255,8)
+#define COLOR_FOREST_GREEN Colors(0,255,25)
+#define COLOR_PAGE_ONE_BOTTOM Colors(63,89,128)
+#define COLOR_PAGE_ONE_TOP Colors(23,43,63)
 
-#define COLOR_PAGE_ONE_BOTTOM Colors(0,0,20)
-#define COLOR_PAGE_ONE_TOP Colors(0,45,245)
-#define COLOR_PAGE_TWO_BOTTOM Colors(0,0,20)
-#define COLOR_PAGE_TWO_TOP Colors(0,85,185)
+#define COLOR_PAGE_TWO_BOTTOM Colors(12,12,35)
+#define COLOR_PAGE_TWO_TOP Colors(45,45,185)
+
 #define COLOR_PAGE_THREE_BOTTOM Colors(0,8,108)
 #define COLOR_PAGE_THREE_TOP Colors(60,60,60)
-#define COLOR_PAGE_FOUR_BOTTOM Colors(0,165,38)
-#define COLOR_PAGE_FOUR_TOP Colors(0,235,45)
+
+#define COLOR_PAGE_FOUR_BOTTOM Colors(0,135,34)
+#define COLOR_PAGE_FOUR_TOP Colors(0,205,32)
 
 /*===============================*/
 /*=====Gestion des neopixels=====*/
@@ -714,7 +716,7 @@ void simpleAmbiantBreath(){
 }
 
 void tutoBreath(){
-  breath(0, 220, 1500, 150);
+  breath(0, 220, 980, 150);
 }
 
 /*==============================*/
