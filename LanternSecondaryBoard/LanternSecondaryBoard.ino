@@ -110,10 +110,10 @@ void changeVolume(byte newVolume, byte newVolumePotarModifier){
     finalVolume = currentVolumePotarModifier >= currentVolume ? MIN_VOLUME : currentVolume - currentVolumePotarModifier;
     if(finalVolume <= MIN_VOLUME){
       audio.setVolume(MIN_VOLUME);
-      audio.volume(0);
+      //audio.volume(0);
     }
     else{
-      audio.volume(1);
+      //audio.volume(1);
       audio.setVolume(finalVolume > MAX_VOLUME ? MAX_VOLUME : finalVolume);
     }
   }
@@ -257,6 +257,7 @@ void setup(void)
     return;
   }
   
+  audio.volume(1);
   currentVolume = MIN_VOLUME;
   currentVolumePotarModifier = 0;
   changeVolume(MAX_VOLUME, 0);
