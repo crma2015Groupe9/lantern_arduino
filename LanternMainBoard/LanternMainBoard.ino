@@ -174,6 +174,10 @@ void rgb(byte red, byte green, byte blue){
   }
 }
 
+void applyColorOnLedAtIndex(byte index, Colors color){
+  rgb(index, color.red(), color.green(), color.blue());
+}
+
 Colors currentColorOfLedAtIndex(byte index){
   uint32_t rawColor = leds.getPixelColor(index);
 
@@ -259,7 +263,7 @@ void lightAnimationUpdate_Dragon(){
 
       currentLedIndex = lightPath(currentLightPosition);
       if(currentLedIndex != LED_VOID){
-          rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+          applyColorOnLedAtIndex(currentLedIndex, finalColor);
       }
   }
 
@@ -279,7 +283,7 @@ void lightAnimationUpdate_Dragon(){
           backgroundColor = currentColorOfLedAtIndex(currentLedIndex);
           finalColor = backgroundColor.getGradientStep(gradientCursor, dragonColor);
 
-          rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+          applyColorOnLedAtIndex(currentLedIndex, finalColor);
         }
     }
   }
@@ -300,7 +304,7 @@ void lightAnimationUpdate_Dragon(){
           backgroundColor = currentColorOfLedAtIndex(currentLedIndex);
           finalColor = backgroundColor.getGradientStep(gradientCursor, dragonColor);
 
-          rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+          applyColorOnLedAtIndex(currentLedIndex, finalColor);
         }
     }
   }
@@ -466,35 +470,26 @@ void lightAnimationUpdate_Forest(){
 /*---------*/
 
 /*Sparkles*/
-#define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING 3
-#define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS 8
+#define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS 3
 
-byte lightAnimationSparklesCurrentLedsSparkling[LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING];
 byte lightAnimationSparklesCurrentStep;
 
-void lightAnimationSparklesNextStep(boolean firstStep){
-  byte indexOfSparklingLed = 0, i;
+byte lightAnimationSparklesIndexOfLedSparklingForStep(byte step){
+  if(step == 2){
+    return 18;
+  }
 
+  if(step == 3){
+    return 26;
+  }
+
+  return step == 0 ? 10 : 12;
+}
+
+void lightAnimationSparklesNextStep(boolean firstStep){
   lightAnimationSparklesCurrentStep = firstStep ? 0 : lightAnimationSparklesCurrentStep+1;
 
-  lightAnimationTween.transition(0,100,550);
-
-  if(firstStep){
-    for(i=0;i<LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING;i++){
-      lightAnimationSparklesCurrentLedsSparkling[i] = lightAnimationSparklesCurrentStep*i*i;//(byte)random(0, NUMBER_OF_LEDS);
-      if(lightAnimationSparklesCurrentLedsSparkling[i] >= NUMBER_OF_LEDS){
-        lightAnimationSparklesCurrentLedsSparkling[i] = NUMBER_OF_LEDS-1;
-      }  
-    }
-  }
-  else{
-    for(i=0;i<LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING;i++){
-      lightAnimationSparklesCurrentLedsSparkling[i] = (i == 0) ? lightAnimationSparklesCurrentStep*i*i : lightAnimationSparklesCurrentLedsSparkling[i-1];
-      if(lightAnimationSparklesCurrentLedsSparkling[i] >= NUMBER_OF_LEDS){
-        lightAnimationSparklesCurrentLedsSparkling[i] = NUMBER_OF_LEDS-1;
-      }
-    }
-  }
+  lightAnimationTween.transition(0,5,660);
 }
 
 void lightAnimationSparklesNextStep(){
@@ -505,40 +500,171 @@ void lightAnimationInit_Sparkles(){
   lightAnimationSparklesNextStep(/*first step*/true);
 }
 
+byte lightAnimationSparkles_topLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex + NUMBER_OF_LEDS_PER_ROW*distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
+byte lightAnimationSparkles_bottomLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex - NUMBER_OF_LEDS_PER_ROW*distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
+byte lightAnimationSparkles_leftLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex - distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
+byte lightAnimationSparkles_rightLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex + distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
+byte lightAnimationSparkles_topLeftLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex - distance + NUMBER_OF_LEDS_PER_ROW*distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
+byte lightAnimationSparkles_topRightLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex + distance + NUMBER_OF_LEDS_PER_ROW*distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
+byte lightAnimationSparkles_bottomLeftLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex - distance - NUMBER_OF_LEDS_PER_ROW*distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
+byte lightAnimationSparkles_bottomRightLedIndexAtDistanceForCenter(int distance, byte centerIndex){
+  int ledIndex = (int)centerIndex + distance - NUMBER_OF_LEDS_PER_ROW*distance;
+  return (ledIndex > 0 && ledIndex < NUMBER_OF_LEDS) ? (byte)ledIndex : LED_VOID; 
+}
+
 void lightAnimationUpdate_Sparkles(){
-  byte imax, i, currentLedIndex;
+  byte currentCenterLedIndex =  lightAnimationSparklesIndexOfLedSparklingForStep(lightAnimationSparklesCurrentStep);
   float gradientCursor;
+
+  int currentSparklePosition = (int)lightAnimationTween.linearValue();
+  float whiteIntensity = 1.12-(float)lightAnimationTween.linearCursor();
+  whiteIntensity = whiteIntensity < 0 ? 0 : whiteIntensity;
 
   Colors
     backgroundColor = COLOR_BLACK,
     finalColor = COLOR_BLACK;
 
-  imax = lightAnimationSparklesCurrentStep+1;
-  imax = imax > LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING ? LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING : imax;
+  byte red, green, blue;
+  byte ledTop, ledDown, ledLeft, ledRight, ledTopLeft, ledTopRight, ledDownLeft, ledDownRight;
 
-  for(i=0;i<imax;i++){
-    currentLedIndex = lightAnimationSparklesCurrentLedsSparkling[i];
-    backgroundColor = currentColorOfLedAtIndex(currentLedIndex);
+  if(currentSparklePosition == 0){
+    backgroundColor = currentColorOfLedAtIndex(currentCenterLedIndex);
+    finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
 
-    gradientCursor = 0.0;
+    applyColorOnLedAtIndex(currentCenterLedIndex, finalColor);
+  }
+  else if(currentSparklePosition > 0){
 
-    if(i==0){
-        gradientCursor = 0.6*lightAnimationTween.linearCursor();
+    ledTop = lightAnimationSparkles_topLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+    backgroundColor = currentColorOfLedAtIndex(ledTop);
+    finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+    applyColorOnLedAtIndex(ledTop, finalColor);
+
+    ledDown = lightAnimationSparkles_bottomLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+    backgroundColor = currentColorOfLedAtIndex(ledDown);
+    finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+    applyColorOnLedAtIndex(ledDown, finalColor);
+
+    ledLeft = lightAnimationSparkles_leftLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+    backgroundColor = currentColorOfLedAtIndex(ledLeft);
+    finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+    applyColorOnLedAtIndex(ledLeft, finalColor);
+
+    ledRight = lightAnimationSparkles_rightLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+    backgroundColor = currentColorOfLedAtIndex(ledRight);
+    finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+    applyColorOnLedAtIndex(ledRight, finalColor);
+
+    whiteIntensity *= 0.9;
+
+    if(currentSparklePosition > 1){
+      ledTopLeft = lightAnimationSparkles_topLeftLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledTopLeft);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledTopLeft, finalColor);
+
+      ledTopRight = lightAnimationSparkles_topRightLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledTopRight);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledTopRight, finalColor);
+
+      ledDownLeft = lightAnimationSparkles_bottomLeftLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledDownLeft);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledDownLeft, finalColor);
+
+      ledDownRight = lightAnimationSparkles_bottomRightLedIndexAtDistanceForCenter(currentSparklePosition, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledDownRight);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledDownRight, finalColor);
     }
-    else if(i==1){
-        if(lightAnimationTween.linearValue() <= 50){
-          gradientCursor = 0.6+(0.4*lightAnimationTween.linearCursor());
-        }
-        else{
-          gradientCursor = 1.0-(0.4*lightAnimationTween.linearCursor());
-        }
+
+    whiteIntensity *= 0.65;
+
+    if(currentSparklePosition == 1){
+      backgroundColor = currentColorOfLedAtIndex(currentCenterLedIndex);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(currentCenterLedIndex, finalColor);
     }
-    else if(i==2){
-        gradientCursor = 0.6-(0.6*lightAnimationTween.linearCursor());
+    if(currentSparklePosition > 1){
+      ledTop = lightAnimationSparkles_topLedIndexAtDistanceForCenter(currentSparklePosition-1, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledTop);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledTop, finalColor);
+
+      ledDown = lightAnimationSparkles_bottomLedIndexAtDistanceForCenter(currentSparklePosition-1, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledDown);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledDown, finalColor);
+
+      ledLeft = lightAnimationSparkles_leftLedIndexAtDistanceForCenter(currentSparklePosition-1, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledLeft);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledLeft, finalColor);
+
+      ledRight = lightAnimationSparkles_rightLedIndexAtDistanceForCenter(currentSparklePosition-1, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledRight);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledRight, finalColor);
     }
 
-    finalColor = backgroundColor.getGradientStep(gradientCursor, COLOR_WHITE);
-    rgb(currentLedIndex, finalColor.red(), finalColor.green(), finalColor.blue());
+    whiteIntensity *= 0.45;
+
+    if(currentSparklePosition == 2){
+      backgroundColor = currentColorOfLedAtIndex(currentCenterLedIndex);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(currentCenterLedIndex, finalColor);
+    }
+    if(currentSparklePosition > 2){
+      ledTop = lightAnimationSparkles_topLedIndexAtDistanceForCenter(currentSparklePosition-2, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledTop);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledTop, finalColor);
+
+      ledDown = lightAnimationSparkles_bottomLedIndexAtDistanceForCenter(currentSparklePosition-2, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledDown);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledDown, finalColor);
+
+      ledLeft = lightAnimationSparkles_leftLedIndexAtDistanceForCenter(currentSparklePosition-2, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledLeft);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledLeft, finalColor);
+
+      ledRight = lightAnimationSparkles_rightLedIndexAtDistanceForCenter(currentSparklePosition-2, currentCenterLedIndex);
+      backgroundColor = currentColorOfLedAtIndex(ledRight);
+      finalColor = backgroundColor.getGradientStep(whiteIntensity, COLOR_WHITE);
+      applyColorOnLedAtIndex(ledRight, finalColor);
+    }
+
   }
 
   if(lightAnimationTween.isEnded() && lightAnimationSparklesCurrentStep <= LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS){
@@ -670,13 +796,13 @@ void applyAmbiantColor(boolean breathing, boolean justTheMiddle, boolean useMinu
           Colors ledColor = ledsOriginColor[i].getGradientStep(
           (float)(((float)((float)(transitionNumberOfMinutesPast-1)+ambiantTransitionTween.easeInOutQuadCursor()))/(float)wireDatas.minuteTransitionDuration),
           ledsTargetColor[i]);
-          rgb(i, ledColor.red(), ledColor.green(), ledColor.blue());
+          applyColorOnLedAtIndex(i, ledColor);
         }
     }
     else{
       for(i=0;i<NUMBER_OF_LEDS;i++){
         Colors ledColor = ledsOriginColor[i].getGradientStep(ambiantTransitionTween.easeInOutQuadCursor(), ledsTargetColor[i]);
-        rgb(i, ledColor.red(), ledColor.green(), ledColor.blue());
+        applyColorOnLedAtIndex(i, ledColor);
       }
     }
   }
@@ -689,7 +815,7 @@ void applyAmbiantColor(boolean breathing, boolean justTheMiddle, boolean useMinu
       onMiddle = (i == 0 || i == 4 || i == 11 || i == 18 || i == 25);
       Colors finalColor = (!justTheMiddle || onMiddle) ? temp_ledColor.getColorWithAlpha(breathingAlpha) : temp_ledColor;
 
-      rgb(i, finalColor.red(), finalColor.green(), finalColor.blue());
+      applyColorOnLedAtIndex(i, finalColor);
     }
   }
 }
@@ -1098,7 +1224,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
   if(currentLanternMode == LANTERN_MODE_LEDS_TEST){
     for(i=0;i<NUMBER_OF_LEDS;i++){
         rgb(0,0,0);
-        rgb(i,255,255,255);
+        applyColorOnLedAtIndex(i,COLOR_WHITE);
         leds.show();
 
         delay(800);
