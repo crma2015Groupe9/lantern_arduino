@@ -311,7 +311,7 @@ void lightAnimationUpdate_Dragon(){
 
 /*Forest*/
 #define LIGHT_ANIMATION_FOREST_STEP_NUMBER 6
-#define LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE 2
+#define LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE 3
 #define FOREST_CENTER_LED 11
 
 //On
@@ -358,7 +358,7 @@ byte lightStepDownRightOfCenterAtDistance(byte distance){
 }
 
 void lightAnimationInit_Forest(){
-  lightAnimationTween.transition(0,LIGHT_ANIMATION_FOREST_STEP_NUMBER, 1300);
+  lightAnimationTween.transition(0,LIGHT_ANIMATION_FOREST_STEP_NUMBER+LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE, 1050+(100*LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE));
 }
 
 void lightAnimationUpdate_Forest(){
@@ -378,7 +378,7 @@ void lightAnimationUpdate_Forest(){
     byte ledTop, ledDown, ledLeft, ledRight, ledTopLeft, ledTopRight, ledDownLeft, ledDownRight;
     
     //Main circle
-    if(currentLightPosition >= 0 && currentLightPosition < LIGHT_ANIMATION_FOREST_STEP_NUMBER){
+    if(currentLightPosition >= 0){
       finalColor = forestColor;
 
       red = finalColor.red();
@@ -390,68 +390,74 @@ void lightAnimationUpdate_Forest(){
         rgb(FOREST_CENTER_LED, red, green, blue);
       }
       else{
-        rgb(lightStepLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
-        rgb(lightStepRightOfCenterAtDistance(currentLightPosition), red, green, blue);
-        rgb(lightStepTopOfCenterAtDistance(currentLightPosition), red, green, blue);
-        rgb(lightStepDownOfCenterAtDistance(currentLightPosition), red, green, blue);
-        rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
-        rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition), red, green, blue);
-        rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
-        rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition), red, green, blue);
-      }
-    }
+        if(currentLightPosition < LIGHT_ANIMATION_FOREST_STEP_NUMBER){
+          rgb(lightStepLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+          rgb(lightStepRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+          rgb(lightStepTopOfCenterAtDistance(currentLightPosition), red, green, blue);
+          rgb(lightStepDownOfCenterAtDistance(currentLightPosition), red, green, blue);
+          rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+          rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+          rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition), red, green, blue);
+          rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition), red, green, blue);
+        }
 
-    //trace after circle
-    traceStart = currentLightPosition-1;
-    traceEnd = currentLightPosition - LIGHT_ANIMATION_FOREST_TRACE_AFTER_SIZE;
-    distanceFromMain = 0;
-    gradientCursor = 0.0;
+        //trace inner circle start Here
+        red *= 0.55;
+        green *= 0.55;
+        blue *= 1.25;
 
-    for(i=traceStart;i<=traceEnd;i++){
-      if(i>=0 && i < LIGHT_ANIMATION_FOREST_STEP_NUMBER){
-        distanceFromMain = (byte)abs(currentLightPosition-i);
-        gradientCursor = (1.0/((float)distanceFromMain*0.65)) * 0.95;
+        if(currentLightPosition==1){
+          rgb(FOREST_CENTER_LED, red, green, blue);
+        }
 
-        ledLeft = lightStepLeftOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledLeft);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledLeft, finalColor.red(), finalColor.green(), finalColor.blue());
+        if(currentLightPosition>1){
+          rgb(lightStepLeftOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+          rgb(lightStepRightOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+          rgb(lightStepTopOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+          rgb(lightStepDownOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+          rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+          rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+          rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+          rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition-1), red, green, blue);
+        }
+        
+        red *= 0.55;
+        green *= 0.65;
+        blue *= 0.85;
 
-        ledRight = lightStepRightOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledRight);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledRight, finalColor.red(), finalColor.green(), finalColor.blue());
+        if(currentLightPosition==2){
+          rgb(FOREST_CENTER_LED, red, green, blue);
+        }
+        
+        if(currentLightPosition > 2){
+            rgb(lightStepLeftOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+            rgb(lightStepRightOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+            rgb(lightStepTopOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+            rgb(lightStepDownOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+            rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+            rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+            rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+            rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition-2), red, green, blue);
+        }
 
-        ledTop = lightStepTopOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledTop);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledTop, finalColor.red(), finalColor.green(), finalColor.blue());
+        red *= 0.55;
+        green *= 0.55;
+        blue *= 0.55;
 
-        ledDown = lightStepDownOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledDown);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledDown, finalColor.red(), finalColor.green(), finalColor.blue());
-
-        ledTopLeft = lightStepTopLeftOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledTopLeft);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledTopLeft, finalColor.red(), finalColor.green(), finalColor.blue());
-
-        ledTopRight = lightStepTopRightOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledTopRight);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledTopRight, finalColor.red(), finalColor.green(), finalColor.blue());
-
-        ledDownLeft = lightStepDownLeftOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledDownLeft);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledDownLeft, finalColor.red(), finalColor.green(), finalColor.blue());
-
-        ledDownRight = lightStepDownRightOfCenterAtDistance(i);
-        backgroundColor = currentColorOfLedAtIndex(ledDownRight);
-        finalColor = backgroundColor.getGradientStep(gradientCursor, forestColor);
-        rgb(ledDownRight, finalColor.red(), finalColor.green(), finalColor.blue());
-
+        if(currentLightPosition==3){
+          rgb(FOREST_CENTER_LED, red, green, blue);
+        }
+        
+        if(currentLightPosition > 3){
+            rgb(lightStepLeftOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+            rgb(lightStepRightOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+            rgb(lightStepTopOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+            rgb(lightStepDownOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+            rgb(lightStepTopLeftOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+            rgb(lightStepTopRightOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+            rgb(lightStepDownLeftOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+            rgb(lightStepDownRightOfCenterAtDistance(currentLightPosition-3), red, green, blue);
+        }
       }
     }
 }
@@ -461,7 +467,7 @@ void lightAnimationUpdate_Forest(){
 
 /*Sparkles*/
 #define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING 3
-#define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS 6
+#define LIGHT_ANIMATION_SPARKLES_NUMBER_OF_STEPS 8
 
 byte lightAnimationSparklesCurrentLedsSparkling[LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING];
 byte lightAnimationSparklesCurrentStep;
@@ -471,16 +477,22 @@ void lightAnimationSparklesNextStep(boolean firstStep){
 
   lightAnimationSparklesCurrentStep = firstStep ? 0 : lightAnimationSparklesCurrentStep+1;
 
-  lightAnimationTween.transition(0,100,225);
+  lightAnimationTween.transition(0,100,550);
 
   if(firstStep){
     for(i=0;i<LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING;i++){
-      lightAnimationSparklesCurrentLedsSparkling[i] = (byte)random(0, NUMBER_OF_LEDS);
+      lightAnimationSparklesCurrentLedsSparkling[i] = lightAnimationSparklesCurrentStep*i*i;//(byte)random(0, NUMBER_OF_LEDS);
+      if(lightAnimationSparklesCurrentLedsSparkling[i] >= NUMBER_OF_LEDS){
+        lightAnimationSparklesCurrentLedsSparkling[i] = NUMBER_OF_LEDS-1;
+      }  
     }
   }
   else{
     for(i=0;i<LIGHT_ANIMATION_SPARKLES_NUMBER_OF_LEDS_SPARKLING;i++){
-      lightAnimationSparklesCurrentLedsSparkling[i] = (i == 0) ? (byte)random(0, NUMBER_OF_LEDS) : (byte)lightAnimationSparklesCurrentLedsSparkling[i-1];
+      lightAnimationSparklesCurrentLedsSparkling[i] = (i == 0) ? lightAnimationSparklesCurrentStep*i*i : lightAnimationSparklesCurrentLedsSparkling[i-1];
+      if(lightAnimationSparklesCurrentLedsSparkling[i] >= NUMBER_OF_LEDS){
+        lightAnimationSparklesCurrentLedsSparkling[i] = NUMBER_OF_LEDS-1;
+      }
     }
   }
 }
@@ -511,18 +523,18 @@ void lightAnimationUpdate_Sparkles(){
     gradientCursor = 0.0;
 
     if(i==0){
-        gradientCursor = 0.6*lightAnimationTween.easeOutQuadCursor();
+        gradientCursor = 0.6*lightAnimationTween.linearCursor();
     }
     else if(i==1){
         if(lightAnimationTween.linearValue() <= 50){
-          gradientCursor = 0.6+(0.4*lightAnimationTween.easeOutQuartCursor());
+          gradientCursor = 0.6+(0.4*lightAnimationTween.linearCursor());
         }
         else{
-          gradientCursor = 1.0-(0.4*lightAnimationTween.easeInQuartCursor());
+          gradientCursor = 1.0-(0.4*lightAnimationTween.linearCursor());
         }
     }
     else if(i==2){
-        gradientCursor = 0.6-(0.6*lightAnimationTween.easeOutQuartCursor());
+        gradientCursor = 0.6-(0.6*lightAnimationTween.linearCursor());
     }
 
     finalColor = backgroundColor.getGradientStep(gradientCursor, COLOR_WHITE);
@@ -992,7 +1004,7 @@ void setup(void)
 
   transitionNumberOfMinutesPast = 0;
 
-  randomSeed(analogRead(0));
+  //randomSeed(analogRead(0));
 
   time.init();
 }
