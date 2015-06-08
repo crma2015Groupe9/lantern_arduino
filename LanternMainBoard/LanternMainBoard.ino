@@ -30,6 +30,8 @@ unsigned long minuteDuration(byte numberOfMinutes){
 //Definition des storyCode
 #define STORY_NO_STORY 'n'
 #define STORY_DRAGON_ENOSHIMA 'd'
+#define STORY_URASHIMA 'u'
+#define STORY_SYLVIE_HIBOU 's'
 #define STORY_BOUCLE_OR 'o'
 
 char currentStoryCode, previousLoopStoryCode, previousStoryCode, currentPage, previousPage, previousLoopPage;
@@ -128,8 +130,10 @@ void stopSound(){
 #define COLOR_TRANSITION_ORANGE Colors(225, 85, 0)
 #define COLOR_NIGHT_ORANGE Colors(108, 18, 0)
 
-#define COLOR_PREVIEW_DRAGON_ENOSHIMA Colors(0, 50, 155)
+#define COLOR_PREVIEW_DRAGON_ENOSHIMA Colors(25, 65, 155)
 #define COLOR_PREVIEW_BOUCLE_OR Colors(245, 195, 10)
+#define COLOR_PREVIEW_URASHIMA Colors(220, 85, 12)
+#define COLOR_PREVIEW_SYLVIE_HIBOU Colors(12, 225, 45)
 
 #define COLOR_DRAGON_RED Colors(235,12,0)
 
@@ -1279,6 +1283,20 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
 
             case STORY_BOUCLE_OR:
               newLedsTargetColors[0] = COLOR_PREVIEW_BOUCLE_OR;
+              for(i=1;i<NUMBER_OF_LEDS;i++){
+                newLedsTargetColors[i] = COLOR_BLACK;
+              }
+            break;
+
+            case STORY_URASHIMA:
+              newLedsTargetColors[0] = COLOR_PREVIEW_URASHIMA;
+              for(i=1;i<NUMBER_OF_LEDS;i++){
+                newLedsTargetColors[i] = COLOR_BLACK;
+              }
+            break;
+
+            case STORY_SYLVIE_HIBOU:
+              newLedsTargetColors[0] = COLOR_PREVIEW_SYLVIE_HIBOU;
               for(i=1;i<NUMBER_OF_LEDS;i++){
                 newLedsTargetColors[i] = COLOR_BLACK;
               }
