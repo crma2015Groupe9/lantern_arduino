@@ -971,11 +971,15 @@ boolean lanternIsOpen(){
 }
 
 //Infrared Sensor
-#define INFRARED_SENSOR_PIN A4
+#define INFRARED_SENSOR_PIN A3
 
 boolean childReactiveLanternTransition(){
-  return false;
-  return digitalRead(INFRARED_SENSOR_PIN);
+  if (lanternIsOpen())
+  {
+    return false;
+  }
+
+  return digitalRead(INFRARED_SENSOR_PIN) == 0 ? true : false;
 }
 
 
@@ -1147,6 +1151,27 @@ void loop()
     Serial.println(F("connexion"));
     launchActionOnSecondaryBoard(WIRE_ACTION_START_LANTERN);
   }*/
+
+  if(lanternIsOpen()){
+    greenLed();
+    rgb(0,255,0);
+  }
+  else{
+    if(childReactiveLanternTransition()){
+      playSound('n');
+      yellowLed();
+      rgb(0,0,255);
+    }
+    else{
+      redLed();
+      rgb(255,150,0);
+    }
+
+  }
+
+  leds.show();
+
+  return;
 
   if(!bluetoothIsConnected() && (currentLanternMode == LANTERN_MODE_TUTO_BEGIN || currentLanternMode == LANTERN_MODE_TUTO_END)){
     setLanternMode(LANTERN_MODE_NIGHT);
