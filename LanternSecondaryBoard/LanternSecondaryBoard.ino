@@ -66,7 +66,7 @@ void receive(int numBytes) {}
 
 #define SPEAKER_PIN 9
 #define SD_CARD_PIN 10
-#define MAX_VOLUME 6
+#define MAX_VOLUME 5
 #define MIN_VOLUME 0
 
 #define SOUND_IDENTIFIER_NONE 'n'
