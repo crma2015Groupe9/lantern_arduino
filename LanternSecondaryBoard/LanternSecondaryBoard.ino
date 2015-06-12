@@ -42,7 +42,7 @@ boolean soundLoopWaitingToBePlayed;
 #define WIRE_ACTION_LOOP_ON 5
 #define WIRE_ACTION_LOOP_OFF 6
 #define WIRE_ACTION_START_TRANSITION 7
-#define WIRE_ACTION_REACTIVATE_TRANSITION 8
+//#define WIRE_ACTION_REACTIVATE_TRANSITION 8
 
 boolean audioLoop;
 
@@ -96,18 +96,24 @@ void stopAudio(){
 }
 
 
-void changeVolume(byte newVolume, byte newVolumePotarModifier){
-  byte finalVolume = 0;
-  if(newVolume != currentVolume || newVolumePotarModifier != currentVolumePotarModifier){
+void changeVolume(byte newVolume, byte newVolumePotarModifier, boolean force){
+  byte finalVolume = 0, currentVolumeToUse, currentVolumePotarModifierToUse;
+  boolean newVolumeValid = (newVolume >= MIN_VOLUME && newVolume <= MAX_VOLUME);
+  boolean newVolumePotarModifierValid = (newVolumePotarModifier >= MIN_VOLUME && newVolumePotarModifier <= MAX_VOLUME);
+
+  if(force || ((newVolumeValid && newVolume != currentVolume) || (newVolumePotarModifier && newVolumePotarModifier != currentVolumePotarModifier))){
     currentVolumePotarModifier = newVolumePotarModifier;
     currentVolume = newVolume;
 
-    if(currentVolumePotarModifier > MAX_VOLUME){currentVolumePotarModifier = MAX_VOLUME;}
-    if(currentVolumePotarModifier < MIN_VOLUME){currentVolumePotarModifier = MIN_VOLUME;}
-    if(currentVolume > MAX_VOLUME){currentVolume = MAX_VOLUME;}
-    if(currentVolume < MIN_VOLUME){currentVolume = MIN_VOLUME;}
+    currentVolumeToUse = currentVolume;
+    currentVolumePotarModifierToUse = currentVolumePotarModifier;
 
-    finalVolume = currentVolumePotarModifier >= currentVolume ? MIN_VOLUME : currentVolume - currentVolumePotarModifier;
+    if(currentVolumePotarModifierToUse > MAX_VOLUME){currentVolumePotarModifierToUse = MAX_VOLUME;}
+    if(currentVolumePotarModifierToUse < MIN_VOLUME){currentVolumePotarModifierToUse = MIN_VOLUME;}
+    if(currentVolumeToUse > MAX_VOLUME){currentVolumeToUse = MAX_VOLUME;}
+    if(currentVolumeToUse < MIN_VOLUME){currentVolumeToUse = MIN_VOLUME;}
+
+    finalVolume = currentVolumePotarModifierToUse >= currentVolumeToUse ? MIN_VOLUME : currentVolumeToUse - currentVolumePotarModifierToUse;
     if(finalVolume <= MIN_VOLUME){
       audio.setVolume(MIN_VOLUME);
       //audio.volume(0);
@@ -119,12 +125,16 @@ void changeVolume(byte newVolume, byte newVolumePotarModifier){
   }
 }
 
+void changeVolume(byte newVolume, byte newVolumePotarModifier){
+  changeVolume(newVolume, newVolumePotarModifier, /*force*/false);
+}
+
 void changeVolumeFromPotar(byte newVolumePotarModifier){
   changeVolume(currentVolume, newVolumePotarModifier);
 }
 
 void changeVolumeFromTransition(byte newVolume){
-  changeVolume(newVolume, currentVolumePotarModifier);
+  changeVolume(newVolume, currentVolumePotarModifier, true);
   if(currentVolume <= MIN_VOLUME){
       stopAudio();
   }
@@ -336,18 +346,22 @@ void loop()
       break;
 
       case WIRE_ACTION_START_TRANSITION:
-        transitionNumberOfMinutesPast = 0;
+        changeVolume(MAX_VOLUME*2, 0, true);
         setLoop(true);
+        if(!audio.isPlaying()){
+          playAudio();
+        }
+        transitionNumberOfMinutesPast = 0;
         volumeTransitionTo(MIN_VOLUME, minuteDuration(1));
       break;
 
-      case WIRE_ACTION_REACTIVATE_TRANSITION:
+      /*case WIRE_ACTION_REACTIVATE_TRANSITION:
         changeVolume(MAX_VOLUME, 0);
         setLoop(true);
         playAudio();
         transitionNumberOfMinutesPast = 0;
         volumeTransitionTo(MIN_VOLUME, minuteDuration(1));
-      break;
+      break;*/
       
       default:
       break;

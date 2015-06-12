@@ -16,6 +16,7 @@ ByteBitList bitList;
 #define BIT_LIST_INDEX_BLUETOOTH_PREVIOUS_LOOP_CONNECTED 2
 #define BIT_LIST_INDEX_FIRST_LOOP 3
 #define BIT_LIST_INDEX_LANTERN_READY 4
+#define BIT_LIST_INDEX_TRANSITION_ENDED 5
 
 TimeManager time;
 
@@ -36,6 +37,14 @@ unsigned long minuteDuration(byte numberOfMinutes){
 
 char currentStoryCode, previousLoopStoryCode, previousStoryCode, currentPage, previousPage, previousLoopPage;
 //unsigned long transitionToNightDuration;
+boolean transitionEnded(){
+  bitList.getValue(BIT_LIST_INDEX_TRANSITION_ENDED);
+}
+
+void transitionEnded(boolean value){
+  bitList.setValue(BIT_LIST_INDEX_TRANSITION_ENDED, value);
+}
+
 boolean transitionToNightStarted(){
   bitList.getValue(BIT_LIST_INDEX_TRANSITION_TO_NIGHT_STARTED);
 }
@@ -86,7 +95,7 @@ void setLanternMode(char newLanternMode){
 #define WIRE_ACTION_LOOP_ON 5
 #define WIRE_ACTION_LOOP_OFF 6
 #define WIRE_ACTION_START_TRANSITION 7
-#define WIRE_ACTION_REACTIVATE_TRANSITION 8
+//#define WIRE_ACTION_REACTIVATE_TRANSITION 8
 
 EasyTransferI2C ET;
 
@@ -1139,7 +1148,7 @@ void setup(void)
   transitionNumberOfMinutesPast = 0;
 
   //randomSeed(analogRead(0));
-
+  transitionEnded(false);
   time.init();
 }
 
@@ -1284,6 +1293,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
   switch(currentLanternMode){
     case LANTERN_MODE_INIT:
       bluetoothIsConnected() ? greenLed() : yellowLed();
+      transitionEnded(false);
       rgb(0,0,0);
     break;
     
@@ -1347,6 +1357,8 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
     
     case LANTERN_MODE_STORY:
       bluetoothIsConnected() ? greenLed() : yellowLed();
+
+      transitionEnded(false);
 
       gradientBottomColor = COLOR_BLACK;
       gradientTopColor = COLOR_BLACK;
@@ -1450,6 +1462,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
 
         ambiantTransition(newLedsTargetColors, 800);
         noBreath();
+        transitionEnded(false);
       }
       else{
         if(transitionToNightStarted() && transitionNumberOfMinutesPast == 0){
@@ -1482,7 +1495,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
 
               transitionNumberOfMinutesPast++;
 
-              if((transitionNumberOfMinutesPast-1) >= wireDatas.minuteTransitionDuration){
+              if(transitionNumberOfMinutesPast >= wireDatas.minuteTransitionDuration){
                 transitionToNightStarted(false);
               }
               else{
@@ -1490,6 +1503,7 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
               }
           }
           else{
+            transitionEnded(true);
             setLanternMode(LANTERN_MODE_NIGHT);
             nextTurnNeedAModeChanged = true;
           }
@@ -1514,9 +1528,9 @@ void manageLanternMode(boolean modeChanged, boolean storyChanged, boolean pageCh
         applyAmbiantColor(/*breathing*/true);
       }
 
-      if(childReactiveLanternTransition()){
+      if(childReactiveLanternTransition() && transitionEnded()){
         setLanternMode(LANTERN_MODE_TRANSITION);
-        launchActionOnSecondaryBoard(WIRE_ACTION_REACTIVATE_TRANSITION);
+        //launchActionOnSecondaryBoard(WIRE_ACTION_REACTIVATE_TRANSITION);
         nextTurnNeedAModeChanged = true;
       }
 
