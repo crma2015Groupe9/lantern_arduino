@@ -352,7 +352,6 @@ void loop()
       break;
 
       case WIRE_ACTION_START_TRANSITION:
-        delay(50);
         minuteTransitionDuration = (int)wireDatas.minuteTransitionDuration;
         changeVolume((int)(MAX_VOLUME*5*minuteTransitionDuration), currentVolumePotarModifier, true);
         setLoop(true);
