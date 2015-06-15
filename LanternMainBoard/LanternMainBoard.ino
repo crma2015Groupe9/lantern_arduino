@@ -113,7 +113,7 @@ void launchActionOnSecondaryBoard(byte actionIdentifier){
 void playSound(char soundFileIdentifier, boolean loop){
   launchActionOnSecondaryBoard((loop ? WIRE_ACTION_LOOP_ON : WIRE_ACTION_LOOP_OFF));
   wireDatas.soundFileIdentifier = soundFileIdentifier;
-  delay(25);//Maybe to delete
+  //delay(25);//Maybe to delete
   launchActionOnSecondaryBoard(WIRE_ACTION_PLAY_SOUND);
 }
 
@@ -123,7 +123,7 @@ void playSound(char soundFileIdentifier){
 
 void stopSound(){
   launchActionOnSecondaryBoard(WIRE_ACTION_LOOP_OFF);
-  delay(25);//Maybe to delete
+  //delay(25);//Maybe to delete
   launchActionOnSecondaryBoard(WIRE_ACTION_STOP_SOUND);
 }
 
